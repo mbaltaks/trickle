@@ -4,7 +4,7 @@
  * Copyright (c) 2003 Marius Aamodt Eriksen <marius@monkey.org>
  * All rights reserved.
  *
- * $Id: trickled.c,v 1.16 2003/03/07 09:35:18 marius Exp $
+ * $Id: trickled.c,v 1.17 2003/03/09 09:14:21 marius Exp $
  */
 
 #include <sys/types.h>
@@ -75,7 +75,7 @@ char *__progname;
 #endif
 
 struct event listenev;
-int winsz = 1024 * 50;
+int winsz = 1024 * 200;
 double tsmooth = 5;
 uint lsmooth = 10, pri = 1, globlim[2] = { 10 * 1024, 10 * 1024 };
 char *conf_path = SYSCONFDIR "/trickled.conf";
@@ -148,6 +148,8 @@ main(int argc, char **argv)
 		case 'N':
 			notifytv.tv_sec = atoi(optarg);
 			break;
+		case 'c':
+			break;
 		case 'h':
 		default:
 			usage();
@@ -156,9 +158,7 @@ main(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
-	warnx("uplim: %d, downlim: %d", globlim[TRICKLEDIR_SEND],
-	    globlim[TRICKLEDIR_RECV]);
-
+	conf_init();
 	print_setup(verbose, usesyslog);
 
 	if (!fg && daemon(1, 0) == -1)
@@ -174,7 +174,7 @@ main(int argc, char **argv)
 
 	if ((cleanup = cleanup_new()) == NULL)
 		errxv(0, 1, "Failed setting up cleanup functionality");
-	client_init();
+	client_init(winsz);
 	trickled_setup(sockname);
 	warnxv(1, "Using socket name: %s", sockname);
 
@@ -411,7 +411,7 @@ usage(void)
 	    "\t-c <file>    Use configuration file <file>\n"
 	    "\t-n <path>    Set socket name to <path>\n"
 	    "\t-N <seconds> Notify of bandwidth usage every <seconds> s\n",
-	    __progname, strlen(__progname), ' ', __progname, __progname);
+	    __progname, (int)strlen(__progname), ' ', __progname, __progname);
 
 	exit(1);
 }

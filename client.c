@@ -4,7 +4,7 @@
  * Copyright (c) 2003 Marius Aamodt Eriksen <marius@monkey.org>
  * All rights reserved.
  *
- * $Id: client.c,v 1.8 2003/03/07 07:24:10 marius Exp $
+ * $Id: client.c,v 1.9 2003/03/09 09:14:21 marius Exp $
  */
 
 #include <sys/types.h>
@@ -59,10 +59,10 @@ SPLAY_GENERATE(clitree, client, next, clicmp);
 static void client_delaycb(int, short, void *);
 
 void
-client_init(void)
+client_init(uint winsz)
 {	
 	/* 512 kB windows.  XXX Make this configurable. */
-	bwstat_init(50 * 1024);
+	bwstat_init(winsz);
 
 	SPLAY_INIT(&clients);
 }
@@ -104,11 +104,13 @@ client_unregister(struct client *cli)
 	if (evtimer_initialized(&cli->delayev))
 		evtimer_del(&cli->delayev);
 
+	bwstat_free(cli->stat);
+
 	SPLAY_REMOVE(clitree, &clients, cli);
 }
 
 void
-client_delay(struct client *cli, short which, int len, uint lim)
+client_delay(struct client *cli, short which, size_t len, uint lim)
 {
 	struct timeval *tv;
 
@@ -133,7 +135,7 @@ client_delay(struct client *cli, short which, int len, uint lim)
 }
 
 void
-client_getdelay(struct client *cli, short which, int len, uint lim)
+client_getdelay(struct client *cli, short which, size_t len, uint lim)
 {
 	struct timeval *tv;
 	struct msg msg;

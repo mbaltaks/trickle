@@ -4,7 +4,7 @@
  * Copyright (c) 2002, 2003 Marius Aamodt Eriksen <marius@monkey.org>
  * All rights reserved.
  *
- * $Id: trickle.c,v 1.13 2003/03/06 05:49:36 marius Exp $
+ * $Id: trickle.c,v 1.14 2003/03/09 09:14:21 marius Exp $
  */
 
 #include <sys/types.h>
@@ -40,7 +40,7 @@ char *__progname;
 int
 main(int argc, char **argv)
 {
-	char *winsz = "512", verbosestr[16],
+	char *winsz = "200", verbosestr[16],
 	    *uplim = "10", *downlim = "10";
 	int opt, verbose = 0;
 	char path[MAXPATHLEN + sizeof("/trickle-overload.so") - 1],
@@ -85,7 +85,7 @@ main(int argc, char **argv)
 		strlcpy(sockname, "/tmp/.trickled.sock", sizeof(sockname));
 
 	if (stat(sockname, &sb) == -1 && (errno == EACCES || errno == ENOENT))
-		err(1, "Socket %s denied", sockname);
+		warn("Could not reach trickled, working independently");
 
 	snprintf(verbosestr, sizeof(verbosestr), "%d", verbose);
 

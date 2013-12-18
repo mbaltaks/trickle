@@ -4,7 +4,7 @@
  * Copyright (c) 2003 Marius Aamodt Eriksen <marius@monkey.org>
  * All rights reserved.
  *
- * $Id: bwstat.c,v 1.8 2003/03/07 09:35:17 marius Exp $ 
+ * $Id: bwstat.c,v 1.9 2003/03/09 09:14:21 marius Exp $ 
  */
 
 #include <sys/types.h>
@@ -141,11 +141,12 @@ _bwstat_update(struct bwstatdata *bsd, int len)
 struct timeval *
 bwstat_getdelay(struct bwstat *bs, size_t *len, uint lim, short which)
 {
-	uint rate = 0, ncli = 0, npts = 0, pool = 0, ent, xent, xrate;
+	uint rate = 0, ncli = 0, npts = 0, pool = 0, ent, xent;
 	double delay;
 	static struct timeval tv;
 	struct bwstathead poolq;
 	struct bwstat *xbs, *bstot = TAILQ_FIRST(&statq);
+	uint initent;
 
 	if (*len == 0)
 		return (NULL);
@@ -170,7 +171,7 @@ bwstat_getdelay(struct bwstat *bs, size_t *len, uint lim, short which)
 		return (NULL);
 
 	/* Entitlement per point */
-	ent = lim / npts;
+	initent = ent = lim / npts;
 
 	if (ent == 0)
 		;		/*
@@ -186,14 +187,15 @@ bwstat_getdelay(struct bwstat *bs, size_t *len, uint lim, short which)
 		/* Take from the poor ... */
 		TAILQ_FOREACH(xbs, &poolq, qnext)
 			if (xbs->data[which].winrate < ent * xbs->pts) {
-				pool += ent * xbs->pts - xrate;
+				pool += ent * xbs->pts -
+				    xbs->data[which].winrate;
 				ncli--;
 				npts -= xbs->pts;
 				TAILQ_REMOVE(&poolq, xbs, qnext);
 			}
 
 		/* And give to the rich ... */
-		if (ncli != 0) {
+		if (ncli > 0) {
 			xent = pool / npts;
 
 			if (xent == 0)
@@ -201,11 +203,19 @@ bwstat_getdelay(struct bwstat *bs, size_t *len, uint lim, short which)
 
 			TAILQ_FOREACH(xbs, &poolq, qnext)
 				if (xbs->data[which].winrate > ent * xbs->pts)
-					pool -= xent;
+					pool -= xent * xbs->pts;
 
 			ent += xent;
 		}
 	} while (pool > 0 && ncli > 0);
+
+	/*
+	 * This is the case of a client that is not using its limit.
+	 * We reset ent in this case.  The rest will adjust itself
+	 * over time.
+	 */
+	if (ent * bs->pts > lim)
+		ent = lim / bs->pts;
 
 	if (bs->data[which].winrate > ent * bs->pts)
 		delay = (1.0 * *len) / (1.0 * ent * bs->pts);

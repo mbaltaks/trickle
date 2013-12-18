@@ -4,7 +4,7 @@
  * Copyright (c) 2002, 2003 Marius Aamodt Eriksen <marius@monkey.org>
  * All rights reserved.
  *
- * $Id: trickle-overload.c,v 1.21 2003/03/07 09:35:17 marius Exp $
+ * $Id: trickle-overload.c,v 1.22 2003/03/09 09:14:21 marius Exp $
  */
 
 #include <sys/types.h>
@@ -130,11 +130,17 @@ void                   safe_printv(int, const char *, ...);
 	exit(l);				\
 } while (0)
 
-#ifdef __linux__
+#if defined(__linux__) || (defined(__OpenBSD__) && defined(__sparc64__))
 #define UNDERSCORE ""
 #else
 #define UNDERSCORE "_"
 #endif /* __linux__ */
+
+#if defined(__OpenBSD__) && defined(__sparc64__)
+#define	LIBC SPARC64LIBC
+#else
+#define LIBC "libc.so"
+#endif /* SPARC64LIBC */
 
 #define INIT do {				\
 	if (!initialized && !initializing)	\
@@ -158,7 +164,8 @@ trickle_init(void)
 #if defined(__linux__) || defined(__sun__)
 	dh = (void *) -1L;
 #else
- 	if ((dh = dlopen("libc.so", RTLD_LAZY)) == NULL)
+
+ 	if ((dh = dlopen(LIBC, RTLD_LAZY)) == NULL)
 		errx(1, "[trickle] Failed to open libc");
 #endif /* __linux__ */
 
@@ -222,7 +229,7 @@ trickle_init(void)
 	 */
 
 	trickled_configure(sockname, libc_socket, libc_read, libc_write, argv0);
-	trickled = trickled_open();
+	trickled_open(&trickled);
 
 	bwstat_init(winsz);
 
@@ -251,8 +258,8 @@ socket(int domain, int type, int protocol)
 
 		/* All sockets are equals. */
 		sd->stat->pts = 1;
-		sd->stat->lsmooth = 10;
-		sd->stat->tsmooth = 5.0;
+		sd->stat->lsmooth = 20;
+		sd->stat->tsmooth = 10.0;
 		sd->sock = sock;
 
 		TAILQ_INSERT_TAIL(&sdhead, sd, next);
@@ -287,7 +294,7 @@ select_delay(struct sockdesc *sd, fd_set *fds, short which,
 {
 	struct timeval *delaytv;
 	struct delay *d, *xd;
-	int len = -1;
+	ssize_t len = -1;
 
 	updatesd(sd, 0, which);
 
@@ -372,8 +379,7 @@ select(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
 		safe_printv(2, "[trickle] select() timeout: %ld seconds %ld microseconds",
 		    tvin->tv_sec, tvin->tv_usec);
 
-	/* XXX */
-	if (timercmp(tvin, &nulltv, <))
+	if (tvin != NULL && timercmp(tvin, &nulltv, <))
 		timerclear(tvin);
 
 	ret = (*libc_select)(nfds, readfds, writefds, exceptfds, tvin);
@@ -641,10 +647,9 @@ dup(int oldfd)
 
 	newfd = (*libc_dup)(oldfd);
 
-	TAILQ_FOREACH(sd, &sdhead, next) {
+	TAILQ_FOREACH(sd, &sdhead, next)
 	        if (oldfd == sd->sock)
 			break;
-	}
 
 	if (sd != NULL && newfd != -1) {
 		if ((nsd = malloc(sizeof(*nsd))) == NULL) {
@@ -736,7 +741,8 @@ delay(int sock, ssize_t *len, short which)
 		return (0);
 
 	/*
-	 * Try trickled delay first, then local delay
+	 * Try trickled delay first, then local delay.  XXX should be
+	 * trickled_getdelay, then localdelay.
 	 */
 	/* XXX nonblock */
 	if (trickled && trickled_delay(which, len) != -1)

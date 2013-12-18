@@ -4,7 +4,7 @@
  * Copyright (c) 2003 Marius Aamodt Eriksen <marius@monkey.org>
  * All rights reserved.
  *
- * $Id: client.h,v 1.3 2003/03/05 08:06:39 marius Exp $
+ * $Id: client.h,v 1.4 2003/03/09 09:14:21 marius Exp $
  */
 
 #ifndef TRICKLE_CLIENT_H
@@ -43,12 +43,12 @@ struct client {
 	TAILQ_ENTRY(client)  nextp;
 };
 
-void            client_init(void);
+void            client_init(uint);
 int             client_register(struct client *);
 int             client_configure(struct client *);
 void            client_unregister(struct client *);
-void            client_delay(struct client *, short, int, uint);
-void            client_getdelay(struct client *, short, int, uint);
+void            client_delay(struct client *, short, size_t, uint);
+void            client_getdelay(struct client *, short, size_t, uint);
 void            client_update(struct client *, short, int);
 int             client_sendmsg(struct client *, struct msg *);
 int             client_recvmsg(struct client *, struct msg *);

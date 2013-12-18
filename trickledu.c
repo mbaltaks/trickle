@@ -4,7 +4,7 @@
  * Copyright (c) 2003 Marius Aamodt Eriksen <marius@monkey.org>
  * All rights reserved.
  *
- * $Id: trickledu.c,v 1.9 2003/03/07 09:35:18 marius Exp $
+ * $Id: trickledu.c,v 1.10 2003/03/09 09:14:21 marius Exp $
  */
 
 #include <sys/types.h>
@@ -39,7 +39,7 @@ DECLARE(socket, int, (int, int, int));
 DECLARE(read, ssize_t, (int, void *, size_t));
 DECLARE(write, ssize_t, (int, const void *, size_t));
 static char *argv0, *sockname;
-static int trickled_sock = -1;
+static int trickled_sock = -1, *trickled;
 
 void
 trickled_configure(char *xsockname, int (*xlibc_socket)(int, int, int),
@@ -54,16 +54,19 @@ trickled_configure(char *xsockname, int (*xlibc_socket)(int, int, int),
 	argv0 = xargv0;
 }
 
-int
-trickled_open(void)
+void
+trickled_open(int *xtrickled)
 {
 	int s;
 	struct sockaddr_un xsun;
 	struct msg msg;
 	struct msg_conf *conf;
 
+	trickled = xtrickled;
+	*trickled = 0;
+
 	if ((s = (*libc_socket)(AF_UNIX, SOCK_STREAM, 0)) == -1)
-		return (0);
+		return;
 
 	memset(&xsun, 0, sizeof(xsun));
 	xsun.sun_family = AF_UNIX;
@@ -71,7 +74,7 @@ trickled_open(void)
 
 	if (connect(s, (struct sockaddr *)&xsun, sizeof(xsun)) == -1) {
 		close(s);
-		return (0);
+		return;
 	}
 
 	memset(&msg, 0, sizeof(msg));
@@ -86,32 +89,44 @@ trickled_open(void)
 
 	if (atomicio(libc_write, s, &msg, sizeof(msg)) != sizeof(msg)) {
 		close(s);
-		return (0);
+		return;
 	}
 
-	trickled_sock = s;
-
-	return (s);
+	*trickled = trickled_sock = s;
 }
 
 int
 trickled_sendmsg(struct msg *msg)
 {
 	if (trickled_sock == -1)
-		return (-1);
+		goto fail;
 
-	return (atomicio(libc_write, trickled_sock, msg, sizeof(*msg)) ==
-	    sizeof(*msg) ? 0 : -1);
+	if (atomicio(libc_write, trickled_sock, msg, sizeof(*msg)) ==
+	    sizeof(*msg))
+		return (0);
+
+ fail:
+	*trickled = 0;
+	trickled_sock = -1;
+
+	return (-1);
 }
 
 int
 trickled_recvmsg(struct msg *msg)
 {
 	if (trickled_sock == -1)
-		return (-1);
+		goto fail;
 
-	return (atomicio(libc_read, trickled_sock, msg, sizeof(*msg)) ==
-	    sizeof(*msg) ? 0 : -1);
+	if (atomicio(libc_read, trickled_sock, msg, sizeof(*msg)) ==
+	    sizeof(*msg))
+		return (0);
+
+ fail:
+	*trickled = 0;
+	trickled_sock = -1;
+
+	return (-1);
 }
 
 int

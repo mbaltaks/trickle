@@ -5,7 +5,7 @@ TRICKLEOVERLOADFILES = @LTLIBOBJS@ trickle-overload.lo bwstat.lo trickledu.lo \
 trickle-overload.so: $(TRICKLEOVERLOADFILES)
 	$(LIBTOOL) --mode=link $(CC) $(CFLAGS) -o libtmp$@.la                \
 		-rpath $(libdir)/trickle $(TRICKLEOVERLOADFILES) $(LIBS)     \
-		$(LDFLAGS) -module -avoid-version -nostdlib -lc @LIBDL@
+		$(LDFLAGS) -module -avoid-version -nostdlib @LIBDL@
 	rm -f libtmp$@.la tmp$@.so* $@
 	cp .libs/libtmp$@.so $@
 	rm -f .libs/libtmp$@.*

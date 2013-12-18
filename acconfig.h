@@ -11,6 +11,7 @@
 
 #undef SPT_TYPE
 #undef HAVE___PROGNAME
+#undef SPARC64LIBC
 
 @BOTTOM@
 

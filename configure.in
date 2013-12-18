@@ -1,10 +1,10 @@
-dnl $Id: configure.in,v 1.12 2003/03/07 09:35:17 marius Exp $
+dnl $Id: configure.in,v 1.13 2003/03/09 09:14:21 marius Exp $
 AC_INIT(trickle.c)
 
 AC_CANONICAL_SYSTEM
 dnl AC_LIBTOOL_DLOPEN
 
-AM_INIT_AUTOMAKE(trickle, 1.01)
+AM_INIT_AUTOMAKE(trickle, 1.02)
 AM_CONFIG_HEADER(config.h)
 
 AC_PROG_CC
@@ -28,6 +28,10 @@ case "$host" in
 	AC_DEFINE(SPT_TYPE,SPT_PSTAT)
 	LIBS="$LIBS -lxnet -lsec"
 	;;
+sparc64-*-openbsd*)
+	dnl loader/linker does not search as expected
+	SPARC64LIBC=`ls -1 /usr/lib/libc.so.* | head -1`
+	;;
 esac
 
 dnl Checks for standard libraries.  Solaris sucks ...
@@ -36,7 +40,7 @@ AC_CHECK_LIB(nsl, gethostbyname)
 AC_CHECK_LIB(dl, dlopen, [ LIBDL="-ldl" ],,)
 AC_SUBST(LIBDL)
 dnl ugly ugly hack	
-AC_CHECK_LIB(c, err,, [ ERRO="err.o" ],)
+AC_CHECK_LIB(c, err, [ ERRO="" ], [ ERRO="err.o" ],)
 AC_SUBST(ERRO)
 
 dnl Checks for header files.
@@ -127,6 +131,7 @@ clibdir="${prefix}/lib/trickle"
 
 AC_DEFINE_UNQUOTED(SYSCONFDIR, "${csysconfdir}")
 AC_DEFINE_UNQUOTED(LIBDIR, "${clibdir}")
+AC_DEFINE_UNQUOTED(SPARC64LIBC, "${SPARC64LIBC}")
 
 # This is necessary so that .o files in LIBOBJS are also built via
 # the ANSI2KNR-filtering rules.

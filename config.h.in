@@ -34,6 +34,7 @@
 
 #undef SPT_TYPE
 #undef HAVE___PROGNAME
+#undef SPARC64LIBC
 
 /* Define if you have the daemon function.  */
 #undef HAVE_DAEMON
@@ -70,9 +71,6 @@
 
 /* Define if you have the <unistd.h> header file.  */
 #undef HAVE_UNISTD_H
-
-/* Define if you have the c library (-lc).  */
-#undef HAVE_LIBC
 
 /* Define if you have the nsl library (-lnsl).  */
 #undef HAVE_LIBNSL

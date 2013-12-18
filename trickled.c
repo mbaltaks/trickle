@@ -4,7 +4,7 @@
  * Copyright (c) 2003 Marius Aamodt Eriksen <marius@monkey.org>
  * All rights reserved.
  *
- * $Id: trickled.c,v 1.15 2003/03/06 05:54:44 marius Exp $
+ * $Id: trickled.c,v 1.16 2003/03/07 09:35:18 marius Exp $
  */
 
 #include <sys/types.h>
@@ -156,6 +156,9 @@ main(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
+	warnx("uplim: %d, downlim: %d", globlim[TRICKLEDIR_SEND],
+	    globlim[TRICKLEDIR_RECV]);
+
 	print_setup(verbose, usesyslog);
 
 	if (!fg && daemon(1, 0) == -1)
@@ -199,15 +202,15 @@ void
 trickled_setup(char *sockname)
 {
 	int s;
-	struct sockaddr_un sun;
+	struct sockaddr_un xsun;
 	if ((s = socket(AF_UNIX, SOCK_STREAM, 0)) == -1)
 		err(1, "socket()");
 
-	memset(&sun, 0, sizeof(sun));
-	sun.sun_family = AF_UNIX;
-	strlcpy(sun.sun_path, sockname, sizeof(sun.sun_path));
+	memset(&xsun, 0, sizeof(xsun));
+	xsun.sun_family = AF_UNIX;
+	strlcpy(xsun.sun_path, sockname, sizeof(xsun.sun_path));
 
-	if (bind(s, (struct sockaddr *)&sun, sizeof(sun)) == -1)
+	if (bind(s, (struct sockaddr *)&xsun, sizeof(xsun)) == -1)
 		errv(0, 1, "bind()");
 
 	if (listen(s, 10) == -1)

@@ -4,7 +4,7 @@
  * Copyright (c) 2002, 2003 Marius Aamodt Eriksen <marius@monkey.org>
  * All rights reserved.
  *
- * $Id: trickle-overload.c,v 1.19 2003/03/06 05:49:36 marius Exp $
+ * $Id: trickle-overload.c,v 1.21 2003/03/07 09:35:17 marius Exp $
  */
 
 #include <sys/types.h>
@@ -88,24 +88,33 @@ static int trickled, initialized, initializing;
 
 DECLARE(socket, int, (int, int, int));
 DECLARE(close, int, (int));
-DECLARE(setsockopt, int, (int, int, int, const void *, socklen_t));
+/* DECLARE(setsockopt, int, (int, int, int, const void *, socklen_t)); */
 
 DECLARE(read, ssize_t, (int, void *, size_t));
 DECLARE(recv, ssize_t, (int, void *, size_t, int));
+DECLARE(readv, ssize_t, (int, const struct iovec *, int));
+#ifdef __sun__
+DECLARE(recvfrom, ssize_t, (int, void *, size_t, int, struct sockaddr *,
+	    Psocklen_t));
+#else
 DECLARE(recvfrom, ssize_t, (int, void *, size_t, int, struct sockaddr *,
 	    socklen_t *));
-DECLARE(readv, ssize_t, (int, const struct iovec *, int));
+#endif /* __sun__ */
 
 DECLARE(write, ssize_t, (int, const void *, size_t));
 DECLARE(send, ssize_t, (int, const void *, size_t, int));
+DECLARE(writev, ssize_t, (int, const struct iovec *, int));
 DECLARE(sendto, ssize_t, (int, const void *, size_t, int,
 	    const struct sockaddr *, socklen_t));
-DECLARE(writev, ssize_t, (int, const struct iovec *, int));
 
 DECLARE(select, int, (int, fd_set *, fd_set *, fd_set *, struct timeval *));
 /* DECLARE(poll, int, (struct pollfd *, int, int)); */
 
+#ifdef __sun__
+DECLARE(accept, int, (int, struct sockaddr *, Psocklen_t));
+#else
 DECLARE(accept, int, (int, struct sockaddr *, socklen_t *));
+#endif /* __sun__ */
 DECLARE(dup, int, (int));
 DECLARE(dup2, int, (int, int));
 
@@ -146,15 +155,15 @@ trickle_init(void)
 
 	initializing = 1;
 
-#ifdef __linux__
+#if defined(__linux__) || defined(__sun__)
 	dh = (void *) -1L;
 #else
-	if ((dh = dlopen("libc.so", RTLD_LAZY)) == NULL)
+ 	if ((dh = dlopen("libc.so", RTLD_LAZY)) == NULL)
 		errx(1, "[trickle] Failed to open libc");
 #endif /* __linux__ */
 
 	GETADDR(socket);
-	GETADDR(setsockopt);
+/*	GETADDR(setsockopt); */
 	GETADDR(close);
 
 	GETADDR(read);
@@ -494,9 +503,14 @@ recv(int sock, void *buf, size_t len, int flags)
 }
 #endif /* !__FreeBSD__ */
 
+#ifdef __sun__
+recvfrom(int sock, void *buf, size_t len, int flags, struct sockaddr *from,
+    Psocklen_t fromlen)
+#else
 ssize_t
 recvfrom(int sock, void *buf, size_t len, int flags, struct sockaddr *from,
     socklen_t *fromlen)
+#endif /* __sun__ */
 {
 	ssize_t ret;
 	size_t xlen = len;
@@ -605,6 +619,7 @@ sendto(int sock, const void *buf, size_t len, int flags, const struct sockaddr *
 	return (ret);
 }
 
+#if 0
 int
 setsockopt(int sock, int level, int optname, const void *optval,
     socklen_t option)
@@ -614,6 +629,7 @@ setsockopt(int sock, int level, int optname, const void *optval,
 	/* blocking, etc. */
 	return ((*libc_setsockopt)(sock, level, optname, optval, option));
 }
+#endif /* 0 */
 
 int
 dup(int oldfd)
@@ -668,8 +684,13 @@ dup2(int oldfd, int newfd)
 	return (ret);
 }
 
+#ifdef __sun__
+int
+accept(int sock, struct sockaddr *addr, Psocklen_t addrlen)
+#else
 int
 accept(int sock, struct sockaddr *addr, socklen_t *addrlen)
+#endif /* __sun__ */
 {
 	int ret;
 	struct sockdesc *sd;
@@ -746,8 +767,9 @@ getdelay(struct sockdesc *sd, ssize_t *len, short which)
 	if (*len < 0)
 		*len = sd->data[which].lastlen;
 
-	if (trickled && (xtv = trickled_getdelay(which, len)) != NULL)
-		xlim = *len / (xtv->tv_sec + xtv->tv_usec / 1000000.0);
+	if (trickled)
+		xlim = (xtv = trickled_getdelay(which, len)) != NULL ? 
+		    *len / (xtv->tv_sec + xtv->tv_usec / 1000000.0) : 0;
 
 	if (xlim == 0)
 		return (NULL);

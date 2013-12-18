@@ -67,11 +67,13 @@ target_triplet = @target@
 AS = @AS@
 CC = @CC@
 DLLTOOL = @DLLTOOL@
+ERRO = @ERRO@
 EVENTINC = @EVENTINC@
 EVENTLIB = @EVENTLIB@
 LIBDL = @LIBDL@
 LIBTOOL = @LIBTOOL@
 LN_S = @LN_S@
+LTLIBOBJS = @LTLIBOBJS@
 MAKEINFO = @MAKEINFO@
 OBJDUMP = @OBJDUMP@
 OVERLOAD_FLAGS = @OVERLOAD_FLAGS@
@@ -83,8 +85,7 @@ AUTOMAKE_OPTIONS = foreign no-dependencies
 
 DISTCLEANFILES = *~
 
-# XXX (strlcpy.lo)
-TRICKLEOVERLOADFILES = trickle-overload.lo bwstat.lo trickledu.lo atomicio.lo                        strlcpy.lo strlcat.lo
+TRICKLEOVERLOADFILES = @LTLIBOBJS@ trickle-overload.lo bwstat.lo trickledu.lo                        atomicio.lo
 
 
 trickleoverloaddir = $(libdir)/trickle
@@ -94,8 +95,9 @@ man_MANS = trickle.1 trickled.8 trickled.conf.5
 
 bin_PROGRAMS = trickle trickled
 
+trickle_DEPENDENCIES = @ERRO@ @LIBOBJS@
 trickle_SOURCES = trickle.c util.c
-trickle_LDADD = @LIBOBJS@
+trickle_LDADD = @ERRO@ @LIBOBJS@
 
 trickled_SOURCES = trickled.c atomicio.c print.c bwstat.c client.c conf.c                    util.c cleanup.c
 
@@ -121,7 +123,6 @@ CPPFLAGS = @CPPFLAGS@
 LDFLAGS = @LDFLAGS@
 LIBS = @LIBS@
 trickle_OBJECTS =  trickle.o util.o
-trickle_DEPENDENCIES =  @LIBOBJS@
 trickle_LDFLAGS = 
 trickled_OBJECTS =  trickled.o atomicio.o print.o bwstat.o client.o \
 conf.o util.o cleanup.o
@@ -141,8 +142,8 @@ DATA =  $(overload_DATA) $(trickleoverload_DATA)
 
 DIST_COMMON =  README ./stamp-h.in INSTALL Makefile.am Makefile.in \
 acconfig.h aclocal.m4 config.guess config.h.in config.sub configure \
-configure.in daemon.c err.c install-sh ltconfig ltmain.sh missing \
-mkinstalldirs strlcat.c strlcpy.c
+configure.in daemon.c install-sh ltconfig ltmain.sh missing \
+mkinstalldirs setenv.c strlcat.c strlcpy.c strsep.c
 
 
 DISTFILES = $(DIST_COMMON) $(SOURCES) $(HEADERS) $(TEXINFOS) $(EXTRA_DIST)

@@ -1,10 +1,10 @@
-dnl $Id: configure.in,v 1.7 2003/03/06 05:49:36 marius Exp $
+dnl $Id: configure.in,v 1.12 2003/03/07 09:35:17 marius Exp $
 AC_INIT(trickle.c)
 
 AC_CANONICAL_SYSTEM
-AC_LIBTOOL_DLOPEN
+dnl AC_LIBTOOL_DLOPEN
 
-AM_INIT_AUTOMAKE(trickle, 1.0)
+AM_INIT_AUTOMAKE(trickle, 1.01)
 AM_CONFIG_HEADER(config.h)
 
 AC_PROG_CC
@@ -35,6 +35,9 @@ AC_CHECK_LIB(socket, socket)
 AC_CHECK_LIB(nsl, gethostbyname)
 AC_CHECK_LIB(dl, dlopen, [ LIBDL="-ldl" ],,)
 AC_SUBST(LIBDL)
+dnl ugly ugly hack	
+AC_CHECK_LIB(c, err,, [ ERRO="err.o" ],)
+AC_SUBST(ERRO)
 
 dnl Checks for header files.
 AC_HEADER_STDC
@@ -69,7 +72,7 @@ dnl Checks for library functions.
 AC_PROG_GCC_TRADITIONAL
 AC_TYPE_SIGNAL
 AC_CHECK_FUNCS(socket)
-AC_REPLACE_FUNCS(strlcat strlcpy err daemon)
+AC_REPLACE_FUNCS(strlcat strlcpy daemon setenv strsep)
 
 dnl Checks for libevent
 AC_MSG_CHECKING(for libevent)
@@ -124,5 +127,11 @@ clibdir="${prefix}/lib/trickle"
 
 AC_DEFINE_UNQUOTED(SYSCONFDIR, "${csysconfdir}")
 AC_DEFINE_UNQUOTED(LIBDIR, "${clibdir}")
+
+# This is necessary so that .o files in LIBOBJS are also built via
+# the ANSI2KNR-filtering rules.
+LIBOBJS=`echo "$LIBOBJS" | sed 's/\.o /\$U.o /g;s/\.o$/\$U.o/'`
+LTLIBOBJS=`echo "$LIBOBJS" | sed 's/\.o/\.lo/g'`
+AC_SUBST(LTLIBOBJS)
 
 AC_OUTPUT(Makefile)

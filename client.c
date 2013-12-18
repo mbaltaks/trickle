@@ -4,7 +4,7 @@
  * Copyright (c) 2003 Marius Aamodt Eriksen <marius@monkey.org>
  * All rights reserved.
  *
- * $Id: client.c,v 1.7 2003/03/06 05:49:36 marius Exp $
+ * $Id: client.c,v 1.8 2003/03/07 07:24:10 marius Exp $
  */
 
 #include <sys/types.h>
@@ -200,14 +200,14 @@ client_printrates(void)
 
 	bsd = bsdsend;
 
-	warnxv(2, "UPLOAD total:\n"
+	warnxv(0, "UPLOAD total:\n"
 	    "\tavg: %d.%d KB/s; win: %d.%d KB/s", 
 	    bsd->rate / 1024, (bsd->rate % 1024) * 100 / 1024,
 	    bsd->winrate / 1024, (bsd->winrate % 1024) * 100 / 1024);
 
 	bsd = bsdrecv;
 
-	warnxv(2, "DOWNLOAD total:\n"
+	warnxv(0, "DOWNLOAD total:\n"
 	    "\tavg: %d.%d KB/s; win: %d.%d KB/s", 
 	    bsd->rate / 1024, (bsd->rate % 1024) * 100 / 1024,
 	    bsd->winrate / 1024, (bsd->winrate % 1024) * 100 / 1024);

@@ -23,6 +23,14 @@ size_t	 strlcat(char *, const char *, size_t);
 size_t	 strlcpy(char *, const char *, size_t);
 #endif
 
+#ifndef HAVE_SETENV
+int setenv(register const char *name, register const char *value, int rewrite);
+#endif /* !HAVE_SETENV */
+
+#ifndef HAVE_STRSEP
+char *strsep(char **, const char *);
+#endif /* HAVE_STRSEP */
+
 #ifndef HAVE_ERR
 void     err(int, const char *, ...);
 void     warn(const char *, ...);

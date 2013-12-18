@@ -1,8 +1,7 @@
 include $(top_srcdir)/Makefile.am.inc
 
-# XXX (strlcpy.lo)
-TRICKLEOVERLOADFILES = trickle-overload.lo bwstat.lo trickledu.lo atomicio.lo \
-                       strlcpy.lo strlcat.lo
+TRICKLEOVERLOADFILES = @LTLIBOBJS@ trickle-overload.lo bwstat.lo trickledu.lo \
+                       atomicio.lo
 trickle-overload.so: $(TRICKLEOVERLOADFILES)
 	$(LIBTOOL) --mode=link $(CC) $(CFLAGS) -o libtmp$@.la                \
 		-rpath $(libdir)/trickle $(TRICKLEOVERLOADFILES) $(LIBS)     \
@@ -18,8 +17,9 @@ man_MANS = trickle.1 trickled.8 trickled.conf.5
 
 bin_PROGRAMS = trickle trickled
 
+trickle_DEPENDENCIES = @ERRO@ @LIBOBJS@
 trickle_SOURCES = trickle.c util.c
-trickle_LDADD = @LIBOBJS@
+trickle_LDADD = @ERRO@ @LIBOBJS@
 
 trickled_SOURCES = trickled.c atomicio.c print.c bwstat.c client.c conf.c \
                    util.c cleanup.c

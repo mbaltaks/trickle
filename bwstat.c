@@ -4,7 +4,7 @@
  * Copyright (c) 2003 Marius Aamodt Eriksen <marius@monkey.org>
  * All rights reserved.
  *
- * $Id: bwstat.c,v 1.7 2003/03/06 05:49:36 marius Exp $ 
+ * $Id: bwstat.c,v 1.8 2003/03/07 09:35:17 marius Exp $ 
  */
 
 #include <sys/types.h>
@@ -28,6 +28,7 @@
 #endif /* defined(HAVE_TIME_H) && defined(TIME_WITH_SYS_TIME) */
 #include <string.h>
 
+#include "util.h"
 #include "bwstat.h"
 
 static TAILQ_HEAD(bwstathead, bwstat) statq;

@@ -4,7 +4,7 @@
  * Copyright (c) 2003 Marius Aamodt Eriksen <marius@monkey.org>
  * All rights reserved.
  *
- * $Id: trickledu.c,v 1.8 2003/03/06 05:49:36 marius Exp $
+ * $Id: trickledu.c,v 1.9 2003/03/07 09:35:18 marius Exp $
  */
 
 #include <sys/types.h>
@@ -58,18 +58,18 @@ int
 trickled_open(void)
 {
 	int s;
-	struct sockaddr_un sun;
+	struct sockaddr_un xsun;
 	struct msg msg;
 	struct msg_conf *conf;
 
 	if ((s = (*libc_socket)(AF_UNIX, SOCK_STREAM, 0)) == -1)
 		return (0);
 
-	memset(&sun, 0, sizeof(sun));
-	sun.sun_family = AF_UNIX;
-	strlcpy(sun.sun_path, sockname, sizeof(sun.sun_path));
+	memset(&xsun, 0, sizeof(xsun));
+	xsun.sun_family = AF_UNIX;
+	strlcpy(xsun.sun_path, sockname, sizeof(xsun.sun_path));
 
-	if (connect(s, (struct sockaddr *)&sun, sizeof(sun)) == -1) {
+	if (connect(s, (struct sockaddr *)&xsun, sizeof(xsun)) == -1) {
 		close(s);
 		return (0);
 	}

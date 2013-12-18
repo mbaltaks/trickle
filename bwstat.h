@@ -4,7 +4,7 @@
  * Copyright (c) 2003 Marius Aamodt Eriksen <marius@monkey.org>
  * All rights reserved.
  *
- * $Id: bwstat.h,v 1.4 2003/03/29 06:22:17 marius Exp $
+ * $Id: bwstat.h,v 1.5 2003/04/06 00:29:37 marius Exp $
  */
 
 #ifndef TRICKLE_BWSTAT

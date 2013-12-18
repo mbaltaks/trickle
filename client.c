@@ -4,7 +4,7 @@
  * Copyright (c) 2003 Marius Aamodt Eriksen <marius@monkey.org>
  * All rights reserved.
  *
- * $Id: client.c,v 1.10 2003/03/29 06:23:25 marius Exp $
+ * $Id: client.c,v 1.12 2003/04/15 05:44:53 marius Exp $
  */
 
 #include <sys/types.h>
@@ -61,7 +61,6 @@ static void client_delaycb(int, short, void *);
 void
 client_init(uint winsz)
 {	
-	/* 512 kB windows.  XXX Make this configurable. */
 	bwstat_init(winsz);
 
 	SPLAY_INIT(&clients);
@@ -119,7 +118,7 @@ client_getinfo(struct client *cli, uint sendlim, uint recvlim)
 	struct msg_getinfo *getinfo = &msg.data.getinfo;
 
 	memset(&msg, 0, sizeof(msg));
-	msg.type = MSG_TYPE_DELAYINFO;
+	msg.type = MSG_TYPE_GETINFO;
 
 	getinfo->dirinfo[TRICKLE_SEND].rate = bsdsend->winrate;
 	getinfo->dirinfo[TRICKLE_SEND].lim = sendlim;
@@ -214,13 +213,12 @@ client_update(struct client *cli, short which, size_t len)
 {
 	struct bwstat_data *bsd = &cli->stat->data[which];
 
-
 	warnxv(4, "Statistics (%s) for %d (%s/%s):",
 	    which == TRICKLE_SEND ? "SEND" : "RECV",
 	    cli->pid, cli->argv0, cli->uname);
 
 #if 0
-	/* XXX for testing  */
+	/* XXX for benchmarking. */
 	if (which == TRICKLE_SEND) {
 		struct timeval tv, xtv;
 		static struct timeval begtv;
@@ -244,6 +242,20 @@ client_update(struct client *cli, short which, size_t len)
 	warnxv(4, "\tavg: %d.%d KB/s; win: %d.%d KB/s", 
 	    bsd->rate / 1024, (bsd->rate % 1024) * 100 / 1024,
 	    bsd->winrate / 1024, (bsd->winrate % 1024) * 100 / 1024);
+}
+
+void
+client_force(void)
+{
+	struct client *cli;
+
+	SPLAY_FOREACH(cli, clitree, &clients) {
+		bwstat_update(cli->stat, 0, BWSTAT_SEND);
+		bwstat_update(cli->stat, 0, BWSTAT_RECV);
+	}
+
+	bwstat_update(NULL, 0, BWSTAT_SEND);
+	bwstat_update(NULL, 0, BWSTAT_RECV);
 }
 
 void

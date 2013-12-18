@@ -4,7 +4,7 @@
  * Copyright (c) 2002, 2003 Marius Aamodt Eriksen <marius@monkey.org>
  * All rights reserved.
  *
- * $Id: trickle-overload.c,v 1.27 2003/03/30 04:47:30 marius Exp $
+ * $Id: trickle-overload.c,v 1.28 2003/04/06 00:29:37 marius Exp $
  */
 
 #include <sys/types.h>

@@ -4,7 +4,7 @@
  * Copyright (c) 2003 Marius Aamodt Eriksen <marius@monkey.org>
  * All rights reserved.
  *
- * $Id: client.h,v 1.5 2003/03/29 06:23:25 marius Exp $
+ * $Id: client.h,v 1.7 2003/04/15 05:44:53 marius Exp $
  */
 
 #ifndef TRICKLE_CLIENT_H
@@ -12,6 +12,7 @@
 
 #define CLIENT_CONFIGURED 0x01
 #define CLIENT_ONQUEUE    0x02
+#define CLIENT_SPECTATOR  0x04
 
 struct client {
 	SPLAY_ENTRY(client)  next;
@@ -54,5 +55,6 @@ int             client_sendmsg(struct client *, struct msg *);
 int             client_recvmsg(struct client *, struct msg *);
 void            client_printrates(void);
 void            client_getinfo(struct client *, uint, uint);
+void            client_force(void);
 
 #endif /* TRICKLE_CLIENT_H */

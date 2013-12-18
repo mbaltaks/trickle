@@ -92,7 +92,7 @@ trickleoverload_DATA = trickle-overload.so
 
 man_MANS = trickle.1 trickled.8 trickled.conf.5
 
-bin_PROGRAMS = trickle trickled
+bin_PROGRAMS = trickle trickled tricklectl
 
 trickle_DEPENDENCIES = @ERRO@ @LIBOBJS@
 trickle_SOURCES = trickle.c util.c getopt.c
@@ -101,6 +101,8 @@ trickle_LDADD = @ERRO@ @LIBOBJS@
 trickled_SOURCES = trickled.c atomicio.c print.c bwstat.c client.c conf.c                    util.c cleanup.c getopt.c
 
 trickled_LDADD = @EVENTLIB@ @LIBOBJS@
+
+tricklectl_SOURCES = tricklectl.c trickledu.c atomicio.c
 
 AM_CFLAGS =  -Wall -Icompat @EVENTINC@
 
@@ -128,6 +130,10 @@ trickled_OBJECTS =  trickled.o atomicio.o print.o bwstat.o client.o \
 conf.o util.o cleanup.o getopt.o
 trickled_DEPENDENCIES =  @LIBOBJS@
 trickled_LDFLAGS = 
+tricklectl_OBJECTS =  tricklectl.o trickledu.o atomicio.o
+tricklectl_LDADD = $(LDADD)
+tricklectl_DEPENDENCIES = 
+tricklectl_LDFLAGS = 
 CFLAGS = @CFLAGS@
 COMPILE = $(CC) $(DEFS) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 LTCOMPILE = $(LIBTOOL) --mode=compile $(CC) $(DEFS) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
@@ -151,8 +157,8 @@ DISTFILES = $(DIST_COMMON) $(SOURCES) $(HEADERS) $(TEXINFOS) $(EXTRA_DIST)
 
 TAR = tar
 GZIP_ENV = --best
-SOURCES = $(trickle_SOURCES) $(trickled_SOURCES)
-OBJECTS = $(trickle_OBJECTS) $(trickled_OBJECTS)
+SOURCES = $(trickle_SOURCES) $(trickled_SOURCES) $(tricklectl_SOURCES)
+OBJECTS = $(trickle_OBJECTS) $(trickled_OBJECTS) $(tricklectl_OBJECTS)
 
 all: all-redirect
 .SUFFIXES:
@@ -270,6 +276,10 @@ trickle: $(trickle_OBJECTS) $(trickle_DEPENDENCIES)
 trickled: $(trickled_OBJECTS) $(trickled_DEPENDENCIES)
 	@rm -f trickled
 	$(LINK) $(trickled_LDFLAGS) $(trickled_OBJECTS) $(trickled_LDADD) $(LIBS)
+
+tricklectl: $(tricklectl_OBJECTS) $(tricklectl_DEPENDENCIES)
+	@rm -f tricklectl
+	$(LINK) $(tricklectl_LDFLAGS) $(tricklectl_OBJECTS) $(tricklectl_LDADD) $(LIBS)
 
 install-man1:
 	$(mkinstalldirs) $(DESTDIR)$(man1dir)

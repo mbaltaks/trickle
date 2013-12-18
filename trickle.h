@@ -4,7 +4,7 @@
  * Copyright (c) 2003 Marius Aamodt Eriksen <marius@monkey.org>
  * All rights reserved.
  *
- * $Id: trickle.h,v 1.2 2003/02/27 14:13:25 marius Exp $
+ * $Id: trickle.h,v 1.3 2003/04/06 00:29:37 marius Exp $
  */
 
 #ifndef TRICKLE_H

@@ -4,7 +4,7 @@
  * Copyright (c) 2003 Marius Aamodt Eriksen <marius@monkey.org>
  * All rights reserved.
  *
- * $Id: trickledu.h,v 1.5 2003/03/29 06:25:41 marius Exp $
+ * $Id: trickledu.h,v 1.6 2003/04/15 05:44:54 marius Exp $
  */
 
 #ifndef TRICKLE_TRICKLEDU_H
@@ -19,5 +19,8 @@ int             trickled_delay(short, size_t *);
 struct timeval *trickled_getdelay(short, size_t *);
 int             trickled_sendmsg(struct msg *);
 int             trickled_recvmsg(struct msg *);
+void            trickled_ctl_open(int *);
+int             trickled_getinfo(uint32_t *, uint32_t *,
+                    uint32_t *, uint32_t *);
 
 #endif /* TRICKLE_TRICKLEDU_H */

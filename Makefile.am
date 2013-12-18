@@ -15,7 +15,7 @@ trickleoverload_DATA = trickle-overload.so
 
 man_MANS = trickle.1 trickled.8 trickled.conf.5
 
-bin_PROGRAMS = trickle trickled
+bin_PROGRAMS = trickle trickled tricklectl
 
 trickle_DEPENDENCIES = @ERRO@ @LIBOBJS@
 trickle_SOURCES = trickle.c util.c getopt.c
@@ -24,6 +24,8 @@ trickle_LDADD = @ERRO@ @LIBOBJS@
 trickled_SOURCES = trickled.c atomicio.c print.c bwstat.c client.c conf.c \
                    util.c cleanup.c getopt.c
 trickled_LDADD = @EVENTLIB@ @LIBOBJS@
+
+tricklectl_SOURCES = tricklectl.c trickledu.c atomicio.c
 
 AM_CFLAGS += -Wall -Icompat @EVENTINC@
 

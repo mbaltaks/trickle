@@ -4,7 +4,7 @@
  * Copyright (c) 2003 Marius Aamodt Eriksen <marius@monkey.org>
  * All rights reserved.
  *
- * $Id: bwstat.c,v 1.12 2003/04/01 00:57:17 marius Exp $ 
+ * $Id: bwstat.c,v 1.14 2003/04/15 05:44:53 marius Exp $ 
  */
 
 #include <sys/types.h>
@@ -93,7 +93,8 @@ bwstat_update(struct bwstat *bs, size_t len, short which)
 {
 	struct bwstat *bstot = TAILQ_FIRST(&statq);
 
-	_bwstat_update(&bs->data[which], len);
+	if (bs != NULL)
+		_bwstat_update(&bs->data[which], len);
 	_bwstat_update(&bstot->data[which], len);
 }
 

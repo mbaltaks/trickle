@@ -1,10 +1,10 @@
-dnl $Id: configure.in,v 1.16 2003/03/29 04:20:41 marius Exp $
+dnl $Id: configure.in,v 1.17 2003/04/06 00:29:37 marius Exp $
 AC_INIT(trickle.c)
 
 AC_CANONICAL_SYSTEM
 dnl AC_LIBTOOL_DLOPEN
 
-AM_INIT_AUTOMAKE(trickle, 1.04)
+AM_INIT_AUTOMAKE(trickle, 1.05)
 AM_CONFIG_HEADER(config.h)
 
 AC_PROG_CC
@@ -162,8 +162,8 @@ main(int argc, char **argv)
 
 if test "$HAVEMETHOD" = "no"; then
     dnl ugly, ugly hack		     
-    LIBCGUESS=`echo /lib/libc.so.* | awk '{print $1'}`
-    USRLIBCGUESS=`echo /usr/lib/libc.so* | awk '{print $1'}`
+    LIBCGUESS=`echo /lib/libc.so.*`
+    USRLIBCGUESS=`echo /usr/lib/libc.so*`
     
     if test "$USRLIBCGUESS" = "/usr/lib/libc.so.*"; then
        USRLIBCGUESS=""
@@ -173,7 +173,7 @@ if test "$HAVEMETHOD" = "no"; then
        LIBCGUESS=""
     fi
     
-    for TESTLIB in libc.so $USRLIBCGUESS $LIBCGUESS
+    for TESTLIB in libc.so `echo $USRLIBCGUESS` `echo $LIBCGUESS`
     do
         AC_MSG_CHECKING(if we can access libc with $TESTLIB)
         AC_TRY_RUN(

@@ -4,7 +4,7 @@
  * Copyright (c) 2003 Marius Aamodt Eriksen <marius@monkey.org>
  * All rights reserved.
  *
- * $Id: message.h,v 1.3 2003/03/29 06:25:10 marius Exp $
+ * $Id: message.h,v 1.5 2003/04/15 05:44:53 marius Exp $
  */
 
 #ifndef TRICKLE_MESSAGE_H
@@ -20,8 +20,8 @@
 #define MSG_TYPE_DELAY     5
 #define MSG_TYPE_GETDELAY  6
 #define MSG_TYPE_DELAYINFO 7 
-#define MSG_TYPE_GETINFO   8
-#define MSG_TYPE_SPECTATOR 9
+#define MSG_TYPE_SPECTATOR 8
+#define MSG_TYPE_GETINFO   100
 
 #define MSG_STATUS_FAIL 1
 

@@ -4,7 +4,7 @@
  * Copyright (c) 2003 Marius Aamodt Eriksen <marius@monkey.org>
  * All rights reserved.
  *
- * $Id: trickled.c,v 1.19 2003/03/30 04:47:31 marius Exp $
+ * $Id: trickled.c,v 1.21 2003/04/15 05:44:53 marius Exp $
  */
 
 /*
@@ -67,6 +67,7 @@ void        msgcb(int, short, void *);
 void        notifycb(int, short, void *);
 void        usage(void);
 void        gensigcb(int, short, void *);
+void        forcecb(int, short, void *);
 
 #define CONF_SAVE(w, f) do {            	\
 	char *p = f;				\
@@ -85,9 +86,9 @@ int winsz = 1024 * 200;
 double tsmooth = 5;
 uint lsmooth = 10, pri = 1, globlim[2] = { 10 * 1024, 10 * 1024 };
 char *conf_path = SYSCONFDIR "/trickled.conf";
-struct event sighupev, sigtermev, sigintev, notifyev;
+struct event sighupev, sigtermev, sigintev, notifyev, forceev;
 cleanup_t *cleanup;
-struct timeval notifytv;
+struct timeval notifytv, forcetv = {5, 0};
 
 int
 main(int argc, char **argv)
@@ -196,6 +197,9 @@ main(int argc, char **argv)
 		evtimer_add(&notifyev, &notifytv);
 	}
 
+	evtimer_set(&forceev, forcecb, NULL);
+	evtimer_add(&forceev, &forcetv);
+
 	event_dispatch();
 
 	err(1, "event error");
@@ -232,6 +236,15 @@ trickled_setup(char *sockname)
 
 	/* Make sure we are good citizens */
 	cleanup_add(cleanup, cleanupcb_unlink, sockname);
+}
+
+void
+forcecb(int fd, short which, void *arg)
+{
+	client_force();
+
+	if (evtimer_add(&forceev, &forcetv) == -1)
+		err(1, "event_add()");
 }
 
 void
@@ -276,7 +289,9 @@ msgcb(int fd, short which, void *arg)
 
 	switch (msg.type) {
 	case MSG_TYPE_SPECTATOR:
-		SET(cli->flags, CLIENT_CONFIGURED);
+		SET(cli->flags, CLIENT_CONFIGURED | CLIENT_SPECTATOR);
+
+		goto out;
 		break;
 	case MSG_TYPE_CONF: {
 		struct passwd *pw;
@@ -327,13 +342,17 @@ msgcb(int fd, short which, void *arg)
 		    cli->uname);
 
 		goto out;
-
 		break;
 	}
 	default:
 		if (!ISSET(cli->flags, CLIENT_CONFIGURED))
 			goto out;
 	}
+
+	/* Spectators have a limited "command set". */
+	if (msg.type < MSG_TYPE_GETINFO &&
+	    ISSET(cli->flags, CLIENT_SPECTATOR))
+		goto out;
 
 	switch (msg.type) {
 	case MSG_TYPE_UPDATE: {
@@ -343,7 +362,7 @@ msgcb(int fd, short which, void *arg)
 	}
 	case MSG_TYPE_DELAY: {
 		struct msg_delay *delay = &msg.data.delay;
-		client_delay(cli, delay->dir, delay->len, globlim[delay->dir]);
+ 		client_delay(cli, delay->dir, delay->len, globlim[delay->dir]);
 		break;
 	}
 	case MSG_TYPE_GETDELAY: {
@@ -371,9 +390,14 @@ static void
 killclient(struct client *cli)
 {
 	close(cli->s);
-	client_unregister(cli);
-	warnxv(1, "Removed client: %d (%s/%s)", cli->pid, cli->argv0,
-	    cli->uname);
+	if (!ISSET(cli->flags, CLIENT_SPECTATOR)) {
+		client_unregister(cli);
+		warnxv(1, "Removed client: %d (%s/%s)", cli->pid, cli->argv0,
+		    cli->uname);
+	} else {
+ 		warnxv(1, "Removed spectator");
+	}	
+
 	free(cli);
 	return;
 }

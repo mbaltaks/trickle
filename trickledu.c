@@ -4,7 +4,7 @@
  * Copyright (c) 2003 Marius Aamodt Eriksen <marius@monkey.org>
  * All rights reserved.
  *
- * $Id: trickledu.c,v 1.11 2003/03/29 06:25:41 marius Exp $
+ * $Id: trickledu.c,v 1.13 2003/04/15 05:44:54 marius Exp $
  */
 
 #include <sys/types.h>
@@ -29,9 +29,12 @@
 #include <time.h>
 #endif /* defined(HAVE_TIME_H) && defined(TIME_WITH_SYS_TIME) */
 
+#include "trickle.h"
 #include "message.h"
 #include "trickledu.h"
 #include "util.h"
+
+static void _trickled_open(struct msg *, int *);
 
 #define DECLARE(name, ret, args) static ret (*libc_##name) args
 
@@ -57,10 +60,40 @@ trickled_configure(char *xsockname, int (*xlibc_socket)(int, int, int),
 void
 trickled_open(int *xtrickled)
 {
-	int s;
-	struct sockaddr_un xsun;
 	struct msg msg;
 	struct msg_conf *conf;
+
+	memset(&msg, 0, sizeof(msg));
+
+	msg.type = MSG_TYPE_CONF;
+	conf = &msg.data.conf;
+	/* memcpy(conf->lim, lim, sizeof(conf->lim)); */
+	conf->pid = getpid();
+	strlcpy(conf->argv0, argv0, sizeof(conf->argv0));
+	conf->uid = geteuid();
+	conf->gid = getegid();
+
+	_trickled_open(&msg, xtrickled);
+}
+
+void
+trickled_ctl_open(int *xtrickled)
+{
+	struct msg msg;
+
+	memset(&msg, 0, sizeof(msg));
+
+	msg.type = MSG_TYPE_SPECTATOR;
+
+	_trickled_open(&msg, xtrickled);
+}
+
+
+static void
+_trickled_open(struct msg *msg, int *xtrickled)
+{
+	int s;
+	struct sockaddr_un xsun;
 
 	trickled = xtrickled;
 	*trickled = 0;
@@ -77,22 +110,12 @@ trickled_open(int *xtrickled)
 		return;
 	}
 
-	memset(&msg, 0, sizeof(msg));
-
-	msg.type = MSG_TYPE_CONF;
-	conf = &msg.data.conf;
-	/* memcpy(conf->lim, lim, sizeof(conf->lim)); */
-	conf->pid = getpid();
-	strlcpy(conf->argv0, argv0, sizeof(conf->argv0));
-	conf->uid = geteuid();
-	conf->gid = getegid();
-
-	if (atomicio(libc_write, s, &msg, sizeof(msg)) != sizeof(msg)) {
+	if (atomicio(libc_write, s, msg, sizeof(*msg)) != sizeof(*msg)) {
 		close(s);
 		return;
 	}
 
-	*trickled = trickled_sock = s;
+	trickled_sock = *trickled = s;
 }
 
 int
@@ -198,4 +221,30 @@ trickled_getdelay(short dir, size_t *len)
 	*len = delayinfo->len;
 
 	return (&tv);
+}
+
+int
+trickled_getinfo(uint32_t *uplim, uint32_t *uprate,
+    uint32_t *downlim, uint32_t *downrate)
+{
+	struct msg msg;
+	struct msg_getinfo *getinfo = &msg.data.getinfo;
+
+	msg.type = MSG_TYPE_GETINFO;
+
+	if (trickled_sendmsg(&msg) == -1)
+		return (-1);
+
+	do {
+		if (trickled_recvmsg(&msg) == -1)
+			return (-1);
+	} while (msg.type != MSG_TYPE_GETINFO);
+
+	*uplim = getinfo->dirinfo[TRICKLE_SEND].lim;
+	*uprate = getinfo->dirinfo[TRICKLE_SEND].rate;
+
+	*downlim = getinfo->dirinfo[TRICKLE_RECV].lim;
+	*downrate = getinfo->dirinfo[TRICKLE_RECV].rate;
+
+	return (0);
 }

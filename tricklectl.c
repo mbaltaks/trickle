@@ -87,7 +87,7 @@ main(int argc, char **argv)
 	argc -= 1;
 	argv += 1;
 
-	trickled_configure(sockname, &socket, &read, &write, argv[0]);
+	trickled_configure(sockname, &socket, &read, &write, &close, argv[0]);
 	trickled_ctl_open(&trickled_sock);
 
 	if (!trickled_sock)

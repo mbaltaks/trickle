@@ -4,7 +4,7 @@
  * Copyright (c) 2003 Marius Aamodt Eriksen <marius@monkey.org>
  * All rights reserved.
  *
- * $Id: bwstat.c,v 1.14 2003/04/15 05:44:53 marius Exp $ 
+ * $Id: bwstat.c,v 1.15 2003/07/29 05:58:58 marius Exp $ 
  */
 
 #include <sys/types.h>
@@ -226,12 +226,11 @@ bwstat_getdelay(struct bwstat *bs, size_t *len, uint lim, short which)
 		delay = 0.0;
 
 /*	if (delay > bs->tsmooth) {  */
-	if ((*len = ent * bs->pts * bs->tsmooth) == 0) {
-		*len = bs->lsmooth;
-		delay = (1.0 * *len) / (1.0 * ent * bs->pts);
-	} else {
-		delay = bs->tsmooth;
-	}
+		if ((*len = ent * bs->pts * bs->tsmooth) == 0) {
+			*len = bs->lsmooth;
+			delay = (1.0 * *len) / (1.0 * ent * bs->pts);
+		} else
+			delay = bs->tsmooth;
 /*	} */
 
 	if (*len > xlen) {

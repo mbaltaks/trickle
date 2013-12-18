@@ -4,7 +4,7 @@
  * Copyright (c) 2003 Marius Aamodt Eriksen <marius@monkey.org>
  * All rights reserved.
  *
- * $Id: trickledu.c,v 1.15 2003/05/09 02:16:42 marius Exp $
+ * $Id: trickledu.c,v 1.16 2004/02/13 06:11:21 marius Exp $
  */
 
 #include <sys/types.h>
@@ -46,19 +46,23 @@ static void _trickled_open(struct msg *, int *);
 DECLARE(socket, int, (int, int, int));
 DECLARE(read, ssize_t, (int, void *, size_t));
 DECLARE(write, ssize_t, (int, const void *, size_t));
+DECLARE(close, int, (int));
 static char *argv0, *sockname;
 static int trickled_sock = -1, *trickled;
+static pid_t trickled_pid = -1;
 
 void
 trickled_configure(char *xsockname, int (*xlibc_socket)(int, int, int),
     ssize_t (*xlibc_read)(int, void *, size_t),
     ssize_t (*xlibc_write)(int, const void *, size_t),
+    int (*xlibc_close)(int),
     char *xargv0)
 {
 	sockname = xsockname;
 	libc_socket = xlibc_socket;
 	libc_write = xlibc_write;
 	libc_read = xlibc_read;
+	libc_close = xlibc_close;
 	argv0 = xargv0;
 }
 
@@ -82,6 +86,14 @@ trickled_open(int *xtrickled)
 }
 
 void
+trickled_close(int *xtrickled)
+{
+	(*libc_close)(trickled_sock);
+	*xtrickled = 0;
+	trickled_sock = -1;
+}
+
+void
 trickled_ctl_open(int *xtrickled)
 {
 	struct msg msg;
@@ -92,7 +104,6 @@ trickled_ctl_open(int *xtrickled)
 
 	_trickled_open(&msg, xtrickled);
 }
-
 
 static void
 _trickled_open(struct msg *msg, int *xtrickled)
@@ -111,14 +122,15 @@ _trickled_open(struct msg *msg, int *xtrickled)
 	strlcpy(xsun.sun_path, sockname, sizeof(xsun.sun_path));
 
 	if (connect(s, (struct sockaddr *)&xsun, sizeof(xsun)) == -1) {
-		close(s);
+		(*libc_close)(s);
 		return;
 	}
 
+	trickled_pid = getpid();
 	trickled_sock = *trickled = s;
 
 	if (trickled_sendmsg(msg) == -1) {
-		close(s);
+		(*libc_close)(s);
 		return;
 	}
 }
@@ -128,6 +140,11 @@ trickled_sendmsg(struct msg *msg)
 {
 	u_char buf[2048];
 	uint32_t buflen = sizeof(buf), xbuflen;
+
+	if (trickled_sock != -1 && trickled_pid != getpid()) {
+		trickled_close(trickled);
+		trickled_open(trickled);
+	}
 
 	if (trickled_sock == -1)
 		goto fail;

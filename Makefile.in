@@ -64,20 +64,32 @@ host_alias = @host_alias@
 host_triplet = @host@
 target_alias = @target_alias@
 target_triplet = @target@
+AR = @AR@
 AS = @AS@
 CC = @CC@
+CXX = @CXX@
+CXXCPP = @CXXCPP@
 DLLTOOL = @DLLTOOL@
+ECHO = @ECHO@
+EGREP = @EGREP@
 ERRO = @ERRO@
 EVENTINC = @EVENTINC@
 EVENTLIB = @EVENTLIB@
+EXEEXT = @EXEEXT@
+F77 = @F77@
+GCJ = @GCJ@
+GCJFLAGS = @GCJFLAGS@
 LIBDL = @LIBDL@
 LIBTOOL = @LIBTOOL@
 LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
 MAKEINFO = @MAKEINFO@
 OBJDUMP = @OBJDUMP@
+OBJEXT = @OBJEXT@
 PACKAGE = @PACKAGE@
 RANLIB = @RANLIB@
+RC = @RC@
+STRIP = @STRIP@
 VERSION = @VERSION@
 
 AUTOMAKE_OPTIONS = foreign no-dependencies
@@ -118,6 +130,7 @@ ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
 CONFIG_HEADER = config.h
 CONFIG_CLEAN_FILES = 
+bin_PROGRAMS =  trickle$(EXEEXT) trickled$(EXEEXT) tricklectl$(EXEEXT)
 PROGRAMS =  $(bin_PROGRAMS)
 
 
@@ -125,13 +138,15 @@ DEFS = @DEFS@ -I. -I$(srcdir) -I.
 CPPFLAGS = @CPPFLAGS@
 LDFLAGS = @LDFLAGS@
 LIBS = @LIBS@
-trickle_OBJECTS =  trickle.o util.o getopt.o
+trickle_OBJECTS =  trickle.$(OBJEXT) util.$(OBJEXT) getopt.$(OBJEXT)
 trickle_LDFLAGS = 
-trickled_OBJECTS =  trickled.o atomicio.o print.o bwstat.o client.o \
-conf.o util.o cleanup.o getopt.o xdr.o
+trickled_OBJECTS =  trickled.$(OBJEXT) atomicio.$(OBJEXT) \
+print.$(OBJEXT) bwstat.$(OBJEXT) client.$(OBJEXT) conf.$(OBJEXT) \
+util.$(OBJEXT) cleanup.$(OBJEXT) getopt.$(OBJEXT) xdr.$(OBJEXT)
 trickled_DEPENDENCIES =  @LIBOBJS@
 trickled_LDFLAGS = 
-tricklectl_OBJECTS =  tricklectl.o trickledu.o atomicio.o xdr.o
+tricklectl_OBJECTS =  tricklectl.$(OBJEXT) trickledu.$(OBJEXT) \
+atomicio.$(OBJEXT) xdr.$(OBJEXT)
 tricklectl_DEPENDENCIES =  @LIBOBJS@
 tricklectl_LDFLAGS = 
 CFLAGS = @CFLAGS@
@@ -149,8 +164,8 @@ DATA =  $(overload_DATA) $(trickleoverload_DATA)
 
 DIST_COMMON =  README ./stamp-h.in Makefile.am Makefile.in TODO \
 acconfig.h aclocal.m4 config.guess config.h.in config.sub configure \
-configure.in daemon.c install-sh ltconfig ltmain.sh missing \
-mkinstalldirs setenv.c strlcat.c strlcpy.c strsep.c
+configure.in daemon.c install-sh ltmain.sh missing mkinstalldirs \
+setenv.c strlcat.c strlcpy.c strsep.c
 
 
 DISTFILES = $(DIST_COMMON) $(SOURCES) $(HEADERS) $(TEXINFOS) $(EXTRA_DIST)
@@ -162,7 +177,7 @@ OBJECTS = $(trickle_OBJECTS) $(trickled_OBJECTS) $(tricklectl_OBJECTS)
 
 all: all-redirect
 .SUFFIXES:
-.SUFFIXES: .S .c .lo .o .s
+.SUFFIXES: .S .c .lo .o .obj .s
 $(srcdir)/Makefile.in: Makefile.am $(top_srcdir)/configure.in $(ACLOCAL_M4) $(top_srcdir)/Makefile.am.inc
 	cd $(top_srcdir) && $(AUTOMAKE) --foreign Makefile
 
@@ -234,6 +249,11 @@ uninstall-binPROGRAMS:
 .c.o:
 	$(COMPILE) -c $<
 
+# FIXME: We should only use cygpath when building on Windows,
+# and only if it is available.
+.c.obj:
+	$(COMPILE) -c `cygpath -w $<`
+
 .s.o:
 	$(COMPILE) -c $<
 
@@ -242,6 +262,7 @@ uninstall-binPROGRAMS:
 
 mostlyclean-compile:
 	-rm -f *.o core *.core
+	-rm -f *.$(OBJEXT)
 
 clean-compile:
 
@@ -269,16 +290,16 @@ distclean-libtool:
 
 maintainer-clean-libtool:
 
-trickle: $(trickle_OBJECTS) $(trickle_DEPENDENCIES)
-	@rm -f trickle
+trickle$(EXEEXT): $(trickle_OBJECTS) $(trickle_DEPENDENCIES)
+	@rm -f trickle$(EXEEXT)
 	$(LINK) $(trickle_LDFLAGS) $(trickle_OBJECTS) $(trickle_LDADD) $(LIBS)
 
-trickled: $(trickled_OBJECTS) $(trickled_DEPENDENCIES)
-	@rm -f trickled
+trickled$(EXEEXT): $(trickled_OBJECTS) $(trickled_DEPENDENCIES)
+	@rm -f trickled$(EXEEXT)
 	$(LINK) $(trickled_LDFLAGS) $(trickled_OBJECTS) $(trickled_LDADD) $(LIBS)
 
-tricklectl: $(tricklectl_OBJECTS) $(tricklectl_DEPENDENCIES)
-	@rm -f tricklectl
+tricklectl$(EXEEXT): $(tricklectl_OBJECTS) $(tricklectl_DEPENDENCIES)
+	@rm -f tricklectl$(EXEEXT)
 	$(LINK) $(tricklectl_LDFLAGS) $(tricklectl_OBJECTS) $(tricklectl_LDADD) $(LIBS)
 
 install-man1:

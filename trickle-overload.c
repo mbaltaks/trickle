@@ -4,7 +4,7 @@
  * Copyright (c) 2002, 2003 Marius Aamodt Eriksen <marius@monkey.org>
  * All rights reserved.
  *
- * $Id: trickle-overload.c,v 1.34 2003/06/02 23:13:28 marius Exp $
+ * $Id: trickle-overload.c,v 1.38 2004/02/13 06:11:21 marius Exp $
  */
 
 /* Ick.  linux sucks. */
@@ -102,7 +102,7 @@ static int verbose;
 static uint lim[2];
 static char *argv0;
 static double tsmooth;
-static uint lsmooth;
+static uint lsmooth/* , latency */;
 static int trickled, initialized, initializing;
 /* XXX initializing - volatile? */
 
@@ -140,6 +140,10 @@ DECLARE(accept, int, (int, struct sockaddr *, socklen_t *));
 DECLARE(dup, int, (int));
 DECLARE(dup2, int, (int, int));
 
+#ifdef HAVE_SENDFILE
+DECLARE(sendfile, ssize_t, (int, int, off_t *, size_t));
+#endif
+
 static int             delay(int, ssize_t *, short);
 static struct timeval *getdelay(struct sockdesc *, ssize_t *, short);
 static void            update(int, ssize_t, short);
@@ -161,12 +165,12 @@ void                   safe_printv(int, const char *, ...);
 #define INIT do {				\
 	if (!initialized && !initializing)	\
 		trickle_init();			\
-} while (0);
+} while (0)
 
 #define GETADDR(x) do {							\
 	if ((libc_##x = dlsym(dh, UNDERSCORE #x)) == NULL)		\
 		errx(0, "[trickle] Failed to get " #x "() address");	\
-} while (0);
+} while (0)
 
 static void
 trickle_init(void)
@@ -174,6 +178,7 @@ trickle_init(void)
 	void *dh;
 	char *winszstr, *verbosestr,
 	    *recvlimstr, *sendlimstr, *sockname, *tsmoothstr, *lsmoothstr;
+/* 	    *latencystr; */
 
 	initializing = 1;
 
@@ -209,12 +214,22 @@ trickle_init(void)
 	GETADDR(sendto);
 
 	GETADDR(select);
-	GETADDR(poll);
+//	GETADDR(poll);
 
 	GETADDR(dup);
 	GETADDR(dup2);
 
 	GETADDR(accept);
+
+#ifdef HAVE_SENDFILE
+	GETADDR(sendfile);
+#endif
+
+	/* XXX pthread test */
+/*  	if ((dh = dlopen("/usr/lib/libpthread.so.1.0", RTLD_LAZY)) == NULL) */
+/* 		errx(1, "[trickle] Failed to open libpthread"); */
+
+	GETADDR(poll);
 
 	if ((winszstr = getenv("TRICKLE_WINDOW_SIZE")) == NULL)
 		errx(1, "[trickle] Failed to get window size");
@@ -240,9 +255,15 @@ trickle_init(void)
 	if ((lsmoothstr = getenv("TRICKLE_LSMOOTH")) == NULL)
 		errx(1, "[trickle] Failed to get length smoothing parameter");
 
+/*
+	if ((latencystr = getenv("TRICKLE_LATENCY")) == NULL)
+		errx(1, "[trickle] Failed to get length latency parameter");
+*/
+
 	winsz = atoi(winszstr) * 1024;
 	lim[TRICKLE_RECV] = atoi(recvlimstr) * 1024;
 	lim[TRICKLE_SEND] = atoi(sendlimstr) * 1024;
+/* 	latency = atoi(latencystr);*/
 	verbose = atoi(verbosestr);
 //	verbose = -1;
 	if ((tsmooth = strtod(tsmoothstr, (char **)NULL)) <= 0.0)
@@ -255,7 +276,8 @@ trickle_init(void)
 	 * Open controlling socket
 	 */
 
-	trickled_configure(sockname, libc_socket, libc_read, libc_write, argv0);
+	trickled_configure(sockname, libc_socket, libc_read,
+	    libc_write, libc_close, argv0);
 	trickled_open(&trickled);
 
 	bwstat_init(winsz);
@@ -274,6 +296,11 @@ socket(int domain, int type, int protocol)
 	INIT;
 
 	sock = (*libc_socket)(domain, type, protocol);
+
+#ifdef DEBUG
+	safe_printv(0, "[DEBUG] socket(%d, %d, %d) = %d",
+	    domain, type, protocol, sock);
+#endif /* DEBUG */
 
 	if (sock != -1 && domain == AF_INET && type == SOCK_STREAM) {
 		if ((sd = calloc(1, sizeof(*sd))) == NULL)
@@ -302,6 +329,10 @@ close(int fd)
 
 	INIT;
 
+#ifdef DEBUG
+	safe_printv(0, "[DEBUG] close(%d)", fd);
+#endif /* DEBUG */
+
 	for (sd = TAILQ_FIRST(&sdhead); sd != NULL; sd = next) {
 		next = TAILQ_NEXT(sd, next);
 		if (sd->sock == fd) {
@@ -310,6 +341,11 @@ close(int fd)
 			free(sd);
 			break;
 		}
+	}
+
+	if (fd == trickled) {
+		trickled_close(&trickled);
+		trickled_open(&trickled);
 	}
 
 	return ((*libc_close)(fd));
@@ -390,7 +426,7 @@ select_shift(struct delayhead *dhead, struct timeval *inittv,
 }
 
 int
-select(int nfds, fd_set *rfds, fd_set *wfds, fd_set *efds,
+_select(int nfds, fd_set *rfds, fd_set *wfds, fd_set *efds,
     struct timeval *__timeout)
 {
 	struct sockdesc *sd;
@@ -403,6 +439,10 @@ select(int nfds, fd_set *rfds, fd_set *wfds, fd_set *efds,
 	int ret;
 
 	INIT;
+
+#ifdef DEBUG
+	safe_printv(0, "[DEBUG] select(%d)", nfds);
+#endif /* DEBUG */
 
 	TAILQ_INIT(&dhead);
 
@@ -446,7 +486,16 @@ select(int nfds, fd_set *rfds, fd_set *wfds, fd_set *efds,
 			selecttv = timeout;
 	}
 
+
+#ifdef DEBUG
+	safe_printv(0, "[DEBUG] IN select(%d)", nfds);
+#endif /* DEBUG */
+
 	ret = (*libc_select)(nfds, rfds, wfds, efds, selecttv);
+
+#ifdef DEBUG
+	safe_printv(0, "[DEBUG] OUT select(%d) = %d", nfds, ret);
+#endif /* DEBUG */
 
 	if (ret == 0 && delaytv != NULL && selecttv == delaytv) {
 		_d = select_shift(&dhead, &inittv, &delaytv);
@@ -473,7 +522,7 @@ select(int nfds, fd_set *rfds, fd_set *wfds, fd_set *efds,
 #define POLL_WRMASK (POLLOUT | POLLWRNORM | POLLWRBAND)
 #define POLL_RDMASK (POLLIN | /* POLLNORM | */  POLLPRI | POLLRDNORM | POLLRDBAND)
 
-#if defined(__linux__) || (defined(__svr4__) && defined(__sun__))
+#if defined(__linux__) || (defined(__svr4__) && defined(__sun__)) || defined(__OpenBSD__)
 int
 poll(struct pollfd *fds, nfds_t nfds, int __timeout)
 #elif defined(__FreeBSD__)
@@ -493,6 +542,10 @@ poll(struct pollfd *fds, int nfds, int __timeout)
 	struct delayhead dhead;
 
 	INIT;
+
+#if defined(DEBUG) || defined(DEBUG_POLL)
+	safe_printv(0, "[DEBUG] poll(*, %d, %d)", nfds, __timeout);
+#endif /* DEBUG */
 
 	if (__timeout != INFTIM) {
 		_timeout.tv_sec = __timeout / 1000;
@@ -552,7 +605,15 @@ poll(struct pollfd *fds, int nfds, int __timeout)
 	else
 		polltimeout = INFTIM;
 
+#if defined(DEBUG) || defined(DEBUG_POLL)
+	safe_printv(0, "[DEBUG] IN poll(*, %d, %d)", nfds, polltimeout);
+#endif /* DEBUG */
+
 	ret = (*libc_poll)((struct pollfd *)fds, (int)nfds, (int)polltimeout);
+
+#if defined(DEBUG) || defined(DEBUG_POLL)
+	safe_printv(0, "[DEBUG] OUT poll(%d) = %d", nfds, ret);
+#endif /* DEBUG */
 
 	if (ret == 0 && delaytv != NULL && polltv == delaytv) {
 		_d = select_shift(&dhead, &inittv, &delaytv);
@@ -586,8 +647,14 @@ read(int fd, void *buf, size_t nbytes)
 
 	INIT;
 
-	if (!(eagain = delay(fd, &xnbytes, TRICKLE_RECV) == TRICKLE_WOULDBLOCK))
+	if (!(eagain = delay(fd, &xnbytes, TRICKLE_RECV) == TRICKLE_WOULDBLOCK)) {
 		ret = (*libc_read)(fd, buf, xnbytes);
+#ifdef DEBUG
+		safe_printv(0, "[DEBUG] read(%d, *, %d) = %d", fd, xnbytes, ret);
+	} else {
+		safe_printv(0, "[DEBUG] delaying read(%d, *, %d) = %d", fd, xnbytes, ret);
+#endif /* DEBUG */
+	}
 
 	update(fd, ret, TRICKLE_RECV);
 
@@ -611,11 +678,18 @@ readv(int fd, const struct iovec *iov, int iovcnt)
 
 	INIT;
 
+
 	for (i = 0; i < iovcnt; i++)
 		len += iov[i].iov_len;
 
-	if (!(eagain = delay(fd, &len, TRICKLE_RECV) == TRICKLE_WOULDBLOCK))
+	if (!(eagain = delay(fd, &len, TRICKLE_RECV) == TRICKLE_WOULDBLOCK)) {
 		ret = (*libc_readv)(fd, iov, iovcnt);
+#ifdef DEBUG
+		safe_printv(0, "[DEBUG] readv(%d, *, %d) = %d", fd, iovcnt, ret);
+	} else {
+		safe_printv(0, "[DEBUG] delaying readv(%d, *, %d)", fd, iovcnt);
+#endif /* DEBUG */
+	}
 
 	update(fd, ret, TRICKLE_RECV);
 
@@ -637,8 +711,15 @@ recv(int sock, void *buf, size_t len, int flags)
 
 	INIT;
 
-	if (!(eagain = delay(sock, &xlen, TRICKLE_RECV) == TRICKLE_WOULDBLOCK))
+	if (!(eagain = delay(sock, &xlen, TRICKLE_RECV) == TRICKLE_WOULDBLOCK)) {
 		ret = (*libc_recv)(sock, buf, xlen, flags);
+#ifdef DEBUG
+		safe_printv(0, "[DEBUG] recv(%d, *, %d, %d) = %d",
+		    sock, len, flags, ret);
+	} else {
+		safe_printv(0, "[DEBUG] delaying recv(%d, *, %d, %d)", sock, len, flags);		
+#endif /* DEBUG */
+	}
 
 	update(sock, ret, TRICKLE_RECV);
 
@@ -667,8 +748,16 @@ recvfrom(int sock, void *buf, size_t len, int flags, struct sockaddr *from,
 
 	INIT;
 
-	if (!(eagain = delay(sock, &xlen, TRICKLE_RECV) == TRICKLE_WOULDBLOCK))
+	if (!(eagain = delay(sock, &xlen, TRICKLE_RECV) == TRICKLE_WOULDBLOCK)) {
 		ret = (*libc_recvfrom)(sock, buf, xlen, flags, from, fromlen);
+#ifdef DEBUG
+		safe_printv(0, "[DEBUG] recvfrom(%d, *, %d, %d) = %d",
+		    sock, len, flags, ret);
+	} else {
+		safe_printv(0, "[DEBUG] delaying recvfrom(%d, *, %d, %d)", sock,
+		    len, flags);		
+#endif /* DEBUG */
+	}
 
 	update(sock, ret, TRICKLE_RECV);
 
@@ -689,8 +778,14 @@ write(int fd, const void *buf, size_t len)
 
 	INIT;
 
-	if (!(eagain = delay(fd, &xlen, TRICKLE_SEND) == TRICKLE_WOULDBLOCK))
+	if (!(eagain = delay(fd, &xlen, TRICKLE_SEND) == TRICKLE_WOULDBLOCK)) {
 		ret = (*libc_write)(fd, buf, xlen);
+#ifdef DEBUG
+		safe_printv(0, "[DEBUG] write(%d, *, %d) = %d", fd, len, ret);
+	} else {
+		safe_printv(0, "[DEBUG] delaying write(%d, *, %d)", fd, len);
+#endif /* DEBUG */
+	}
 
 	update(fd, ret, TRICKLE_SEND);
 
@@ -717,8 +812,15 @@ writev(int fd, const struct iovec *iov, int iovcnt)
 	for (i = 0; i < iovcnt; i++)
 		len += iov[i].iov_len;
 
-	if (!(eagain = delay(fd, &len, TRICKLE_SEND) == TRICKLE_WOULDBLOCK))
+	if (!(eagain = delay(fd, &len, TRICKLE_SEND) == TRICKLE_WOULDBLOCK)) {
 		ret = (*libc_writev)(fd, iov, iovcnt);
+#ifdef DEBUG
+		safe_printv(0, "[DEBUG] writev(%d, *, %d) = %d",
+		    fd, iovcnt, ret);
+	} else {
+		safe_printv(0, "[DEBUG] delaying writev(%d, *, %d)", fd, iovcnt);
+#endif /* DEBUG */
+	}
 
 	update(fd, ret, TRICKLE_SEND);
 
@@ -740,8 +842,16 @@ send(int sock, const void *buf, size_t len, int flags)
 
 	INIT;
 
-	if (!(eagain = delay(sock, &xlen, TRICKLE_SEND) == TRICKLE_WOULDBLOCK))
+	if (!(eagain = delay(sock, &xlen, TRICKLE_SEND) == TRICKLE_WOULDBLOCK)) {
 		ret = (*libc_send)(sock, buf, xlen, flags);
+#ifdef DEBUG
+		safe_printv(0, "[DEBUG] send(%d, *, %d, %d) = %d",
+		    sock, len, flags, ret);
+	} else {
+		safe_printv(0, "[DEBUG] delaying send(%d, *, %d, %d)", sock,
+		    len, flags);
+#endif /* DEBUG */
+	}
 
 	update(sock, ret, TRICKLE_SEND);
 
@@ -764,8 +874,14 @@ sendto(int sock, const void *buf, size_t len, int flags, const struct sockaddr *
 
 	INIT;
 
-	if (!(eagain = delay(sock, &xlen, TRICKLE_SEND) == TRICKLE_WOULDBLOCK))
+	if (!(eagain = delay(sock, &xlen, TRICKLE_SEND) == TRICKLE_WOULDBLOCK)) {
 		ret = (*libc_sendto)(sock, buf, xlen, flags, to, tolen);
+#ifdef DEBUG
+		safe_printv(0, "[DEBUG] sendto(%d, *, %d) = %d", sock, len, ret);
+	} else {
+		safe_printv(0, "[DEBUG] delaying sendto(%d, *, %d)", sock, len);
+#endif /* DEBUG */
+	}
 
 	update(sock, ret, TRICKLE_SEND);
 
@@ -799,6 +915,10 @@ dup(int oldfd)
 
 	newfd = (*libc_dup)(oldfd);
 
+#ifdef DEBUG
+	safe_printv(0, "[DEBUG] dup(%d) = %d", oldfd, newfd);
+#endif /* DEBUG */
+
 	TAILQ_FOREACH(sd, &sdhead, next)
 	        if (oldfd == sd->sock)
 			break;
@@ -825,6 +945,10 @@ dup2(int oldfd, int newfd)
 	INIT;
 
 	ret = (*libc_dup2)(oldfd, newfd);
+
+#ifdef DEBUG
+	safe_printv(0, "[DEBUG] dup2(%d, %d) = %d", oldfd, newfd, ret);
+#endif /* DEBUG */
 
 	TAILQ_FOREACH(sd, &sdhead, next)
 		if (oldfd == sd->sock)
@@ -856,6 +980,10 @@ accept(int sock, struct sockaddr *addr, socklen_t *addrlen)
 
 	ret = (*libc_accept)(sock, addr, addrlen);
 
+#ifdef DEBUG
+	safe_printv(0, "[DEBUG] accept(%d) = %d", sock, ret);
+#endif /* DEBUG */
+
 	if (ret != -1) {
 		if ((sd = calloc(1, sizeof(*sd))) == NULL)
 			return (ret);
@@ -874,6 +1002,30 @@ accept(int sock, struct sockaddr *addr, socklen_t *addrlen)
 
 	return (ret);
 }
+
+#ifdef HAVE_SENDFILE
+ssize_t
+sendfile(int out_fd, int in_fd, off_t *offset, size_t count)
+{
+	size_t inbytes = count, outbytes = count, bytes;
+	ssize_t ret = 0;
+
+	INIT;
+
+	/* in_fd = recv, out_fd = send */
+
+	/* We should never get TRICKLE_WOULDBLOCK here */
+	delay(in_fd, &inbytes, TRICKLE_RECV);
+	delay(out_fd, &outbytes, TRICKLE_SEND);
+
+	/* This is a slightly ugly hack. */
+	bytes = MIN(inbytes, outbytes);
+	if (bytes > 0)
+		ret = (*libc_sendfile)(out_fd, in_fd, offset, bytes);
+
+	return (ret);
+}
+#endif	/* HAVE_SENDFILE */
 
 static int
 delay(int sock, ssize_t *len, short which)
@@ -922,9 +1074,8 @@ getdelay(struct sockdesc *sd, ssize_t *len, short which)
 	if (*len < 0)
 		*len = sd->data[which].lastlen;
 
-	if (trickled)
-		xlim = (xtv = trickled_getdelay(which, len)) != NULL ? 
-		    *len / (xtv->tv_sec + xtv->tv_usec / 1000000.0) : 0;
+	if (trickled && (xtv = trickled_getdelay(which, len)) != NULL)
+		xlim = *len / (xtv->tv_sec + xtv->tv_usec / 1000000.0);
 
 	if (xlim == 0)
 		return (NULL);

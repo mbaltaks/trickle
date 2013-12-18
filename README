@@ -1,5 +1,5 @@
 --------------------------------------------------------------------------------
-trickle 1.06
+trickle 1.07
 --------------------------------------------------------------------------------
    by Marius Aamodt Eriksen <marius@monkey.org>
 
@@ -27,6 +27,10 @@ INSTALL
 
    this is easily circumvented by running make again.
 
+   To make a RedHat RPM, simply type
+
+   rpmbuild -ta trickle-1.07.tar.gz
+
 DOCUMENTATION
 
    See the manpage trickle(1), trickled(8) and trickled.conf(5).
@@ -39,9 +43,13 @@ THANKS
    Tony Kurc 
        for the awesome logo.
 
+   Dag Wieërs <dag@wieers.com>
+       for the RedHat SPEC. 
+
    Niels Provos <provos@citi.umich.edu>,
    Gareth Watts <gareth@omnipotent.net>,
-   Jolan Luff <jolan@cryptonomicon.org> and 
+   Jolan Luff <jolan@cryptonomicon.org>,
+   Todd Vierling <tv@duh.org> and
    MESH (http://mesh.eecs.umich.edu/)
        for useful discussions and suggestions.
 

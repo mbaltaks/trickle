@@ -4,7 +4,7 @@
  * Copyright (c) 2002, 2003 Marius Aamodt Eriksen <marius@monkey.org>
  * All rights reserved.
  *
- * $Id: trickle.c,v 1.15 2003/03/30 04:47:31 marius Exp $
+ * $Id: trickle.c,v 1.18 2004/02/13 06:13:05 marius Exp $
  */
 
 #include <sys/types.h>
@@ -37,20 +37,27 @@ extern char *__progname;
 char *__progname;
 #endif
 
+#define LIBNAME "trickle-overload.so"
+
 int
 main(int argc, char **argv)
 {
 	char *winsz = "200", verbosestr[16],
-	    *uplim = "10", *downlim = "10", *tsmooth = "3.0", *lsmooth = "20";
+	    *uplim = "10", *downlim = "10", *tsmooth = "3.0", *lsmooth = "20",
+	    *latency = "0";
 	int opt, verbose = 0, standalone = 0;
-	char path[MAXPATHLEN + sizeof("/trickle-overload.so") - 1],
-	    sockname[MAXPATHLEN];
+	char buf[MAXPATHLEN], sockname[MAXPATHLEN], *path, **pathp;
 	struct stat sb;
+	char *trypaths[]  = {
+		LIBNAME,
+		LIBDIR "/" LIBNAME,
+		NULL
+	};
 
 	__progname = get_progname(argv[0]);
 	sockname[0] = '\0';
 
-	while ((opt = getopt(argc, argv, "hvVsw:n:u:d:t:l:")) != -1)
+	while ((opt = getopt(argc, argv, "hvVsw:n:u:d:t:l:L:")) != -1)
                 switch (opt) {
 		case 'v':
 			verbose++;
@@ -79,6 +86,9 @@ main(int argc, char **argv)
 		case 's':
 			standalone = 1;
 			break;
+		case 'L':
+			latency = optarg;
+			break;
                 case 'h':
 		default:
 			usage();
@@ -90,6 +100,24 @@ main(int argc, char **argv)
 	if (argc == 0)
 		usage();
 
+	for (pathp = trypaths; *pathp != NULL; pathp++)
+		if (lstat(*pathp, &sb) == 0)
+			break;
+
+	path = *pathp;
+	if (path == NULL)
+		errx(1, "Could not find overload object");
+
+	if (path[0] != '/') {
+		if (getcwd(buf, sizeof(buf)) == NULL)
+			errx(1, "getcwd");
+
+		strlcat(buf, "/", sizeof(buf));
+		strlcat(buf, path, sizeof(buf));
+
+		path = buf;
+	}
+
 	if (!standalone) {
 		if (sockname[0] == '\0')
 			strlcpy(sockname, "/tmp/.trickled.sock",
@@ -98,14 +126,10 @@ main(int argc, char **argv)
 		if (stat(sockname, &sb) == -1 &&
 		    (errno == EACCES || errno == ENOENT))
 			warn("Could not reach trickled, working independently");
-	} else {
+	} else
 		strlcpy(sockname, "", sizeof(sockname));
-	}
 
 	snprintf(verbosestr, sizeof(verbosestr), "%d", verbose);
-
-	strlcpy(path, LIBDIR, sizeof(path));
-	strlcat(path, "/trickle-overload.so", sizeof(path));
 
 	setenv("TRICKLE_DOWNLOAD_LIMIT", downlim, 1);
 	setenv("TRICKLE_UPLOAD_LIMIT", uplim, 1);
@@ -115,6 +139,7 @@ main(int argc, char **argv)
 	setenv("TRICKLE_SOCKNAME", sockname, 1);
 	setenv("TRICKLE_TSMOOTH", tsmooth, 1);
 	setenv("TRICKLE_LSMOOTH", lsmooth, 1);
+/*	setenv("TRICKLE_LATENCY", latency, 1); */
 
 	setenv("LD_PRELOAD", path, 1);
 
@@ -141,7 +166,8 @@ usage(void)
 	    "\t-w <length>  Set window length to <length> KB \n"
 	    "\t-t <seconds> Set default smoothing time to <seconds> s\n"
 	    "\t-l <length>  Set default smoothing length to <length> KB\n"
-	    "\t-n <path>    Use trickled socket name <path>\n",
+	    "\t-n <path>    Use trickled socket name <path>\n"
+	    "\t-L <ms>      Set latency to <ms> milliseconds\n",
 	    __progname, (int)strlen(__progname), ' ', __progname);
 
 	exit(1);

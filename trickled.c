@@ -4,7 +4,7 @@
  * Copyright (c) 2003 Marius Aamodt Eriksen <marius@monkey.org>
  * All rights reserved.
  *
- * $Id: trickled.c,v 1.23 2003/05/09 02:16:42 marius Exp $
+ * $Id: trickled.c,v 1.24 2003/06/25 19:12:53 marius Exp $
  */
 
 /*
@@ -223,12 +223,12 @@ trickled_setup(char *sockname)
 	if (bind(s, (struct sockaddr *)&xsun, sizeof(xsun)) == -1)
 		errv(0, 1, "bind()");
 
-	if (listen(s, 10) == -1)
-		errv(0, 1, "listen()");
-
 	/* We want to serve everybody */
 	if (chmod(sockname, S_IRWXU | S_IRWXG | S_IRWXO) == -1)
 		errv(0, 1, "chmod()");
+
+	if (listen(s, 10) == -1)
+		errv(0, 1, "listen()");
 
 	event_set(&listenev, s, EV_READ, newclientcb, NULL);
 	if (event_add(&listenev, NULL) == -1)

@@ -1,10 +1,10 @@
-dnl $Id: configure.in,v 1.13 2003/03/09 09:14:21 marius Exp $
+dnl $Id: configure.in,v 1.16 2003/03/29 04:20:41 marius Exp $
 AC_INIT(trickle.c)
 
 AC_CANONICAL_SYSTEM
 dnl AC_LIBTOOL_DLOPEN
 
-AM_INIT_AUTOMAKE(trickle, 1.02)
+AM_INIT_AUTOMAKE(trickle, 1.03)
 AM_CONFIG_HEADER(config.h)
 
 AC_PROG_CC
@@ -25,19 +25,16 @@ AC_PROG_INSTALL
 dnl Platform specific stuff
 case "$host" in
 *-*-hpux*)
-	AC_DEFINE(SPT_TYPE,SPT_PSTAT)
-	LIBS="$LIBS -lxnet -lsec"
-	;;
-sparc64-*-openbsd*)
-	dnl loader/linker does not search as expected
-	SPARC64LIBC=`ls -1 /usr/lib/libc.so.* | head -1`
-	;;
+    AC_DEFINE(SPT_TYPE,SPT_PSTAT)
+    LIBS="$LIBS -lxnet -lsec"
+    ;;
 esac
 
 dnl Checks for standard libraries.  Solaris sucks ...
 AC_CHECK_LIB(socket, socket)
 AC_CHECK_LIB(nsl, gethostbyname)
-AC_CHECK_LIB(dl, dlopen, [ LIBDL="-ldl" ],,)
+AC_CHECK_LIB(dl, dlopen, [ LIBDL="-ldl" 
+			   LIBS="$LIBS -ldl" ],,)
 AC_SUBST(LIBDL)
 dnl ugly ugly hack	
 AC_CHECK_LIB(c, err, [ ERRO="" ], [ ERRO="err.o" ],)
@@ -56,7 +53,7 @@ AC_CACHE_CHECK([if libc defines __progname], ac_cv_libc_defines___progname, [
         )
 ])
 if test "x$ac_cv_libc_defines___progname" = "xyes" ; then
-        AC_DEFINE(HAVE___PROGNAME)
+   AC_DEFINE(HAVE___PROGNAME)
 fi
 
 AC_CHECK_HEADERS(sys/ioctl.h sys/time.h err.h time.h unistd.h stdint.h)
@@ -118,20 +115,104 @@ then
 AC_SUBST(EVENTINC)
 AC_SUBST(EVENTLIB)
 
-OVERLOAD_FLAGS="-nostrdlib -shared -fPIC -lc"
-AC_SUBST(OVERLOAD_FLAGS)
+dnl check if underscores are needed
+AC_MSG_CHECKING(if underscores are needed for symbols)
+AC_TRY_RUN(
+#include <dlfcn.h>
+#include <stdio.h>
 
-if test "x${sysconfdir}" = 'x${prefix}/etc'; then
-    csysconfdir="${prefix}/etc"
-else
-    csysconfdir="${sysconfdir}"
+int underscoreprobe(void) { return (31415); }
+
+int
+main(int argc, char **argv)
+{
+	void *dh;
+
+	if ((dh = dlopen(NULL, 0)) == NULL)
+		exit(1);
+
+	if (dlsym(dh, "_underscoreprobe") != NULL)
+		exit(0);
+
+	exit(1);	
+}, [AC_MSG_RESULT(yes)
+   AC_DEFINE(DL_NEED_UNDERSCORE)], AC_MSG_RESULT(no), AC_MSG_RESULT(no))
+
+HAVEMETHOD=no
+
+AC_MSG_CHECKING(if we can access libc without dlopen)
+AC_TRY_RUN(
+#include <dlfcn.h>
+#include <stdio.h>
+
+int
+main(int argc, char **argv)
+{
+	void *dh;
+
+	dh = (void *)-1L;
+
+	if (dlsym(dh, "printf") != NULL || dlsym(dh, "_printf") != NULL)
+		exit(0);
+
+	exit(1);
+}, [AC_MSG_RESULT(yes)
+    AC_DEFINE(NODLOPEN)
+    HAVEMETHOD=yes], AC_MSG_RESULT(no), AC_MSG_RESULT(no))
+
+if test "$HAVEMETHOD" = "no"; then
+    dnl ugly, ugly hack		     
+    LIBCGUESS=`echo /lib/libc.so.* | awk '{print $1'}`
+    USRLIBCGUESS=`echo /usr/lib/libc.so* | awk '{print $1'}`
+    
+    if test "$USRLIBCGUESS" = "/usr/lib/libc.so.*"; then
+       USRLIBCGUESS=""
+    fi
+    
+    if test "$LIBCGUESS" = "/lib/libc.so.*"; then
+       LIBCGUESS=""
+    fi
+    
+    for TESTLIB in libc.so $USRLIBCGUESS $LIBCGUESS
+    do
+        AC_MSG_CHECKING(if we can access libc with $TESTLIB)
+        AC_TRY_RUN(
+        #include <dlfcn.h>
+        #include <stdio.h>
+    
+        int
+        main(int argc, char **argv)
+        {
+    	    void *dh;
+    
+    	    if (dlopen("$TESTLIB", RTLD_LAZY) != NULL)
+    	           exit(0);
+    
+            exit(1);
+        }, [AC_MSG_RESULT(yes)
+            AC_DEFINE_UNQUOTED(DLOPENLIBC, "$TESTLIB")
+	    HAVEMETHOD=yes], AC_MSG_RESULT(no), AC_MSG_RESULT(no))
+
+	if test "$HAVEMETHOD" = "yes"; then
+	   break
+	fi
+    done
 fi
 
-clibdir="${prefix}/lib/trickle"
+if test "$HAVEMETHOD" = "no"; then
+   AC_MSG_ERROR(Couldn't figure out how to access libc)
+fi
 
-AC_DEFINE_UNQUOTED(SYSCONFDIR, "${csysconfdir}")
-AC_DEFINE_UNQUOTED(LIBDIR, "${clibdir}")
-AC_DEFINE_UNQUOTED(SPARC64LIBC, "${SPARC64LIBC}")
+if test "x$sysconfdir" = "x$prefix/etc"; then
+    csysconfdir="$prefix/etc"
+else
+    csysconfdir="$sysconfdir"
+fi
+
+clibdir="$prefix/lib/trickle"
+
+AC_DEFINE_UNQUOTED(SYSCONFDIR, "$csysconfdir")
+AC_DEFINE_UNQUOTED(LIBDIR, "$clibdir")
 
 # This is necessary so that .o files in LIBOBJS are also built via
 # the ANSI2KNR-filtering rules.

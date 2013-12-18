@@ -11,7 +11,9 @@
 
 #undef SPT_TYPE
 #undef HAVE___PROGNAME
-#undef SPARC64LIBC
+#undef DL_NEED_UNDERSCORE
+#undef NODLOPEN
+#undef DLOPENLIBC
 
 @BOTTOM@
 

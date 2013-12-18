@@ -4,7 +4,7 @@
  * Copyright (c) 2003 Marius Aamodt Eriksen <marius@monkey.org>
  * All rights reserved.
  *
- * $Id: bwstat.c,v 1.9 2003/03/09 09:14:21 marius Exp $ 
+ * $Id: bwstat.c,v 1.11 2003/03/29 23:34:40 marius Exp $ 
  */
 
 #include <sys/types.h>
@@ -35,7 +35,7 @@ static TAILQ_HEAD(bwstathead, bwstat) statq;
 static uint winsz;
 
 static double difftv(struct timeval *, struct timeval *);
-static void   _bwstat_update(struct bwstatdata *, int);
+static void   _bwstat_update(struct bwstatdata *, size_t);
 
 #define INITTV(tv, curtv) do {			\
 	if (!timerisset(&(tv)))			\
@@ -89,7 +89,7 @@ bwstat_gettot(void)
 }
 
 void
-bwstat_update(struct bwstat *bs, int len, short which)
+bwstat_update(struct bwstat *bs, size_t len, short which)
 {
 	struct bwstat *bstot = TAILQ_FIRST(&statq);
 
@@ -98,7 +98,7 @@ bwstat_update(struct bwstat *bs, int len, short which)
 }
 
 static void
-_bwstat_update(struct bwstatdata *bsd, int len)
+_bwstat_update(struct bwstatdata *bsd, size_t len)
 {
 	struct timeval curtv;
 	double elap, elapwin;
@@ -138,6 +138,7 @@ _bwstat_update(struct bwstatdata *bsd, int len)
 /*
  * Return required delay for bs for direction which.
  */
+
 struct timeval *
 bwstat_getdelay(struct bwstat *bs, size_t *len, uint lim, short which)
 {
@@ -147,6 +148,7 @@ bwstat_getdelay(struct bwstat *bs, size_t *len, uint lim, short which)
 	struct bwstathead poolq;
 	struct bwstat *xbs, *bstot = TAILQ_FIRST(&statq);
 	uint initent;
+	size_t xlen = *len;
 
 	if (*len == 0)
 		return (NULL);
@@ -176,12 +178,12 @@ bwstat_getdelay(struct bwstat *bs, size_t *len, uint lim, short which)
 	if (ent == 0)
 		;		/*
 				 * XXX we have surpassed our
-				 * granularity
+				 * granularity.
 				 */
 
 	/*
 	 * Sprinkle some bandwidth: increase the value of a point
-	 * until everything is satisfied.
+	 * until everyone is satisfied.
 	 */
 	do {
 		/* Take from the poor ... */
@@ -222,13 +224,18 @@ bwstat_getdelay(struct bwstat *bs, size_t *len, uint lim, short which)
 	else
 		delay = 0.0;
 
-	if (delay > bs->tsmooth) {
-		if ((*len = ent * bs->pts * bs->tsmooth) == 0) {
-			*len = bs->lsmooth;
-			delay = (1.0 * *len) / (1.0 * ent * bs->pts);
-		} else {
-			delay = bs->tsmooth;
-		}
+	if (delay > bs->tsmooth) { 
+	if ((*len = ent * bs->pts * bs->tsmooth) == 0) {
+		*len = bs->lsmooth;
+		delay = (1.0 * *len) / (1.0 * ent * bs->pts);
+	} else {
+		delay = bs->tsmooth;
+	}
+	}
+
+	if (*len > xlen) {
+		*len = xlen;
+		delay = (1.0 * *len) / (1.0 * ent * bs->pts);
 	}
 
 	/* XXX */

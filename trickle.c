@@ -4,7 +4,7 @@
  * Copyright (c) 2002, 2003 Marius Aamodt Eriksen <marius@monkey.org>
  * All rights reserved.
  *
- * $Id: trickle.c,v 1.14 2003/03/09 09:14:21 marius Exp $
+ * $Id: trickle.c,v 1.15 2003/03/30 04:47:31 marius Exp $
  */
 
 #include <sys/types.h>
@@ -41,8 +41,8 @@ int
 main(int argc, char **argv)
 {
 	char *winsz = "200", verbosestr[16],
-	    *uplim = "10", *downlim = "10";
-	int opt, verbose = 0;
+	    *uplim = "10", *downlim = "10", *tsmooth = "3.0", *lsmooth = "20";
+	int opt, verbose = 0, standalone = 0;
 	char path[MAXPATHLEN + sizeof("/trickle-overload.so") - 1],
 	    sockname[MAXPATHLEN];
 	struct stat sb;
@@ -50,7 +50,7 @@ main(int argc, char **argv)
 	__progname = get_progname(argv[0]);
 	sockname[0] = '\0';
 
-	while ((opt = getopt(argc, argv, "hvVw:n:u:d:")) != -1)
+	while ((opt = getopt(argc, argv, "hvVsw:n:u:d:t:l:")) != -1)
                 switch (opt) {
 		case 'v':
 			verbose++;
@@ -70,6 +70,15 @@ main(int argc, char **argv)
 		case 'n':
 			strlcpy(sockname, optarg, sizeof(sockname));
 			break;
+		case 't':
+			tsmooth = optarg;
+			break;
+		case 'l':
+			lsmooth = optarg;
+			break;
+		case 's':
+			standalone = 1;
+			break;
                 case 'h':
 		default:
 			usage();
@@ -81,11 +90,17 @@ main(int argc, char **argv)
 	if (argc == 0)
 		usage();
 
-	if (sockname[0] == '\0')
-		strlcpy(sockname, "/tmp/.trickled.sock", sizeof(sockname));
+	if (!standalone) {
+		if (sockname[0] == '\0')
+			strlcpy(sockname, "/tmp/.trickled.sock",
+			    sizeof(sockname));
 
-	if (stat(sockname, &sb) == -1 && (errno == EACCES || errno == ENOENT))
-		warn("Could not reach trickled, working independently");
+		if (stat(sockname, &sb) == -1 &&
+		    (errno == EACCES || errno == ENOENT))
+			warn("Could not reach trickled, working independently");
+	} else {
+		strlcpy(sockname, "", sizeof(sockname));
+	}
 
 	snprintf(verbosestr, sizeof(verbosestr), "%d", verbose);
 
@@ -98,6 +113,8 @@ main(int argc, char **argv)
 	setenv("TRICKLE_WINDOW_SIZE", winsz, 1);
 	setenv("TRICKLE_ARGV", argv[0], 1);
 	setenv("TRICKLE_SOCKNAME", sockname, 1);
+	setenv("TRICKLE_TSMOOTH", tsmooth, 1);
+	setenv("TRICKLE_LSMOOTH", lsmooth, 1);
 
 	setenv("LD_PRELOAD", path, 1);
 
@@ -112,15 +129,20 @@ void
 usage(void)
 {
 	fprintf(stderr,
-	    "Usage: %s: [-hv] [-u <rate>] [-d <rate>] [-w <size>] command ...\n"
-	    "\t-h  Help (this)\n"
-	    "\t-v  Increase the verbosity level\n"
-	    "\t-V  Display version\n"
-	    "\t-u  Limit upload bandwith usage to <rate> KBps\n"
-	    "\t-d  Limit download bandwith usage to <rate> KBps\n"
-	    "\t-w  Set window size to <size> KB \n"
-	    "\t-n  Use trickled socket name <path>\n",
-	    __progname);
+	    "Usage: %s [-hvVs] [-d <rate>] [-u <rate>] [-w <length>] "
+	    "[-t <seconds>]\n"
+	    "       %*c [-l <length>] [-n <path>] command ...\n"
+	    "\t-h           Help (this)\n"
+	    "\t-v           Increase verbosity level\n"
+	    "\t-V           Print %s version\n"
+	    "\t-s           Run trickle in standalone mode independent of trickled\n"
+	    "\t-d <rate>    Set maximum cumulative download rate to <rate> KB/s\n"
+	    "\t-u <rate>    Set maximum cumulative upload rate to <rate> KB/s\n"
+	    "\t-w <length>  Set window length to <length> KB \n"
+	    "\t-t <seconds> Set default smoothing time to <seconds> s\n"
+	    "\t-l <length>  Set default smoothing length to <length> KB\n"
+	    "\t-n <path>    Use trickled socket name <path>\n",
+	    __progname, (int)strlen(__progname), ' ', __progname);
 
 	exit(1);
 }

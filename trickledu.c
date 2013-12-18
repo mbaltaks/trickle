@@ -4,7 +4,7 @@
  * Copyright (c) 2003 Marius Aamodt Eriksen <marius@monkey.org>
  * All rights reserved.
  *
- * $Id: trickledu.c,v 1.10 2003/03/09 09:14:21 marius Exp $
+ * $Id: trickledu.c,v 1.11 2003/03/29 06:25:41 marius Exp $
  */
 
 #include <sys/types.h>
@@ -130,7 +130,7 @@ trickled_recvmsg(struct msg *msg)
 }
 
 int
-trickled_update(short dir, int len)
+trickled_update(short dir, size_t len)
 {
 	struct msg msg;
 	struct msg_update *update = &msg.data.update;

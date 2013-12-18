@@ -4,7 +4,7 @@
  * Copyright (c) 2003 Marius Aamodt Eriksen <marius@monkey.org>
  * All rights reserved.
  *
- * $Id: message.h,v 1.2 2003/02/27 16:25:09 marius Exp $
+ * $Id: message.h,v 1.3 2003/03/29 06:25:10 marius Exp $
  */
 
 #ifndef TRICKLE_MESSAGE_H
@@ -37,7 +37,7 @@ struct msg_delay {
 };
 
 struct msg_update {
-	ssize_t len;
+	size_t len;
 	short   dir;
 };
 

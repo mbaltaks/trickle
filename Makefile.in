@@ -76,7 +76,6 @@ LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
 MAKEINFO = @MAKEINFO@
 OBJDUMP = @OBJDUMP@
-OVERLOAD_FLAGS = @OVERLOAD_FLAGS@
 PACKAGE = @PACKAGE@
 RANLIB = @RANLIB@
 VERSION = @VERSION@
@@ -96,18 +95,19 @@ man_MANS = trickle.1 trickled.8 trickled.conf.5
 bin_PROGRAMS = trickle trickled
 
 trickle_DEPENDENCIES = @ERRO@ @LIBOBJS@
-trickle_SOURCES = trickle.c util.c
+trickle_SOURCES = trickle.c util.c getopt.c
 trickle_LDADD = @ERRO@ @LIBOBJS@
 
-trickled_SOURCES = trickled.c atomicio.c print.c bwstat.c client.c conf.c                    util.c cleanup.c
+trickled_SOURCES = trickled.c atomicio.c print.c bwstat.c client.c conf.c                    util.c cleanup.c getopt.c
 
 trickled_LDADD = @EVENTLIB@ @LIBOBJS@
+
+AM_CFLAGS =  -Wall -Icompat @EVENTINC@
 
 overloaddir = $(libdir)
 overload_DATA = libtrickle.so
 
-CFLAGS = @EVENTINC@ -Wall -g $(AM_CFLAGS) -Icompat
-LDADD = @LIBOBJS@
+CLEANFILES = *.so
 
 EXTRA_DIST = LICENSE README strlcat.c strlcpy.c err.c Makefile.am.inc	             compat/sys/queue.h compat/sys/tree.h trickle.1 trickled.8		     trickled.conf.5 trickle-overload.c trickledu.c cleanup.h		     conf.h message.h trickle.h util.h bwstat.h client.h		     print.h trickledu.h
 
@@ -122,12 +122,13 @@ DEFS = @DEFS@ -I. -I$(srcdir) -I.
 CPPFLAGS = @CPPFLAGS@
 LDFLAGS = @LDFLAGS@
 LIBS = @LIBS@
-trickle_OBJECTS =  trickle.o util.o
+trickle_OBJECTS =  trickle.o util.o getopt.o
 trickle_LDFLAGS = 
 trickled_OBJECTS =  trickled.o atomicio.o print.o bwstat.o client.o \
-conf.o util.o cleanup.o
+conf.o util.o cleanup.o getopt.o
 trickled_DEPENDENCIES =  @LIBOBJS@
 trickled_LDFLAGS = 
+CFLAGS = @CFLAGS@
 COMPILE = $(CC) $(DEFS) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 LTCOMPILE = $(LIBTOOL) --mode=compile $(CC) $(DEFS) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
 CCLD = $(CC)
@@ -529,6 +530,7 @@ installdirs:
 mostlyclean-generic:
 
 clean-generic:
+	-test -z "$(CLEANFILES)" || rm -f $(CLEANFILES)
 
 distclean-generic:
 	-rm -f Makefile $(CONFIG_CLEAN_FILES)
@@ -586,9 +588,9 @@ trickle-overload.so: $(TRICKLEOVERLOADFILES)
 	$(LIBTOOL) --mode=link $(CC) $(CFLAGS) -o libtmp$@.la                \
 		-rpath $(libdir)/trickle $(TRICKLEOVERLOADFILES) $(LIBS)     \
 		$(LDFLAGS) -module -avoid-version -nostdlib @LIBDL@
-	rm -f libtmp$@.la tmp$@.so* $@
-	cp .libs/libtmp$@.so $@
-	rm -f .libs/libtmp$@.*
+	@rm -f libtmp$@.la tmp$@.so* $@
+	@cp .libs/libtmp$@.so $@
+	@rm -f .libs/libtmp$@.*
 
 libtrickle.so: trickle-overload.c atomicio.c
 $(overload_DATA):

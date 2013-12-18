@@ -4,7 +4,13 @@
  * Copyright (c) 2003 Marius Aamodt Eriksen <marius@monkey.org>
  * All rights reserved.
  *
- * $Id: trickled.c,v 1.17 2003/03/09 09:14:21 marius Exp $
+ * $Id: trickled.c,v 1.19 2003/03/30 04:47:31 marius Exp $
+ */
+
+/*
+ * NOTES
+ * - on the first transmission; limit the #bytes to smoothing length to avoid 
+ *   initial spike
  */
 
 #include <sys/types.h>
@@ -396,22 +402,26 @@ void
 usage(void)
 {
 	fprintf(stderr,
-	    "Usage: %s [-hvVf] [-d <rate>] [-u <rate>] [-l <length>] "
-	    "[-t <seconds>]\n"
-	    "       %*c [-p <priority>] [-c <file>] [-w <length>]\n"
-	    "\t-h           Help (this)\n"
-	    "\t-v           Increase verbosity level\n"
-	    "\t-V           Print %s version\n"
-	    "\t-f           Run %s in the foreground\n"
-	    "\t-s           Use syslog instead of stderr to print messages\n"
-	    "\t-d <rate>    Set maximum cumulative download rate to <rate> KB/s\n"
-	    "\t-u <rate>    Set maximum cumulative upload rate to <rate> KB/s\n"
-	    "\t-l <length>  Set default smoothing length to <length> KB\n"
-	    "\t-t <seconds> Set default smoothing time to <seconds> s\n"
-	    "\t-c <file>    Use configuration file <file>\n"
-	    "\t-n <path>    Set socket name to <path>\n"
-	    "\t-N <seconds> Notify of bandwidth usage every <seconds> s\n",
-	    __progname, (int)strlen(__progname), ' ', __progname, __progname);
+	    "Usage: %s [-hvVfs] [-d <rate>] [-u <rate>] [-t <seconds>] "
+	    "[-l <length>]\n"
+	    "       %*c [-p <priority>] [-c <file>] [-n <path>] [-N <seconds>]\n"
+	    "       %*c [-w <length>]\n"
+	    "\t-h            Help (this)\n"
+	    "\t-v            Increase verbosity level\n"
+	    "\t-V            Print %s version\n"
+	    "\t-f            Run %s in the foreground\n"
+	    "\t-s            Use syslog instead of stderr to print messages\n"
+	    "\t-d <rate>     Set maximum cumulative download rate to <rate> KB/s\n"
+	    "\t-u <rate>     Set maximum cumulative upload rate to <rate> KB/s\n"
+	    "\t-t <seconds>  Set default smoothing time to <seconds> s\n"
+	    "\t-l <length>   Set default smoothing length to <length> KB\n"
+	    "\t-p <priority> Set default priority to <priority>\n"
+	    "\t-c <file>     Use configuration file <file>\n"
+	    "\t-n <path>     Set socket name to <path>\n"
+	    "\t-N <seconds>  Notify of bandwidth usage every <seconds> s\n"
+	    "\t-w <length>   Set window size to <length> s\n",
+	    __progname, (int)strlen(__progname), ' ',
+	    (int)strlen(__progname), ' ', __progname, __progname);
 
 	exit(1);
 }

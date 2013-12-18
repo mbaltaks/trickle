@@ -17,12 +17,13 @@
 .Op Fl s
 .Op Fl d Ar rate
 .Op Fl u Ar rate
-.Op Fl w Ar size
 .Op Fl t Ar seconds
 .Op Fl l Ar length
+.Op Fl p Ar priority
 .Op Fl c Ar file
 .Op Fl n Ar path
 .Op Fl N Ar seconds
+.Op Fl w Ar size
 .Sh DESCRIPTION
 .Nm
 is a userspace bandwidth manager daemon.
@@ -51,14 +52,6 @@ KB/s.
 Limit the upload bandwidth consumption to 
 .Ar rate
 KB/s.
-.It Fl w Ar size
-Set peak detection window size to 
-.Ar size
-KB.  This determines how aggressive 
-.Nm
-is at eliminating bandwidth consumption peaks.  Lower values will be
-more aggressive, but may also result in over shaping.  The default
-value (512 KB) is usually sufficient.
 .It Fl t Ar seconds
 Set smoothing time to
 .Ar seconds 
@@ -81,6 +74,9 @@ cannot meet the requested smoothing time, it will instead fall back on
 sending 
 .Ar length
 KB of data.  The default value is 10 KB.
+.It Fl p Ar priority
+Set default priority to 
+.Ar priority .
 .It Fl c Ar file
 Use the configuration file
 .Ar file .
@@ -97,6 +93,14 @@ uses
 Notifies user of total bandwidth consumption every
 .Ar seconds
 s.
+.It Fl w Ar size
+Set peak detection window size to 
+.Ar size
+KB.  This determines how aggressive 
+.Nm
+is at eliminating bandwidth consumption peaks.  Lower values will be
+more aggressive, but may also result in over shaping.  The default
+value (512 KB) is usually sufficient.
 .Sh EXAMPLES
 .Cm trickled -u 10 -d 20
 .Pp

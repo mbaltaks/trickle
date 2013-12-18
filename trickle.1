@@ -13,9 +13,12 @@
 .Op Fl h 
 .Op Fl v
 .Op Fl V
-.Op Fl u Ar rate
+.Op Fl s
 .Op Fl d Ar rate
-.Op Fl w Ar size
+.Op Fl u Ar rate
+.Op Fl w Ar length
+.Op Fl t Ar time
+.Op Fl l Ar length
 .Op Fl n Ar path
 .Ar command ...
 .Sh DESCRIPTION
@@ -43,22 +46,44 @@ Displays help.
 Increases the verbosity level (can be specified multiple times).
 .It Fl V
 Prints version.
-.It Fl u Ar rate
-Limit the upload bandwidth consumption to 
-.Ar rate
-KB/s.
+.It Fl s
+Runs trickle in standalone mode, independent of 
+.Xr trickled 8 .
 .It Fl d Ar rate
 Limit the download bandwidth consumption to 
 .Ar rate
 KB/s.
-.It Fl w Ar size
+.It Fl u Ar rate
+Limit the upload bandwidth consumption to 
+.Ar rate
+KB/s.
+.It Fl w Ar length
 Set peak detection window size to 
-.Ar size
+.Ar length
 KB.  This determines how aggressive 
 .Nm
 is at eliminating bandwidth consumption peaks.  Lower values will be
 more aggressive, but may also result in over shaping.  The default
 value (512 KB) is usually sufficient.
+.It Fl t Ar seconds
+Set smoothing time to
+.Ar seconds 
+s.  The smoothing time determines with what intervals 
+.Nm
+will try to let the application transcieve data.  Smaller values will
+result in a more continuous (smooth) session, while larger values may
+produce bursts in the sending and receiving data.  Smaller values (0.1
+- 1 s) are ideal for interactive applications while slightly larger
+values (1 - 10 s) are better for applications that need bulk transfer.
+.It Fl l Ar length
+Set smoothing length to
+.Ar length 
+KB.  The smoothing length is a fallback of the smoothing time.  If 
+.Nm
+cannot meet the requested smoothing time, it will instead fall back on
+sending 
+.Ar length
+KB of data.  The default value is 10 KB.
 .It Fl n Ar path
 Use 
 .Xr trickled 8

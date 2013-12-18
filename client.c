@@ -4,7 +4,7 @@
  * Copyright (c) 2003 Marius Aamodt Eriksen <marius@monkey.org>
  * All rights reserved.
  *
- * $Id: client.c,v 1.9 2003/03/09 09:14:21 marius Exp $
+ * $Id: client.c,v 1.10 2003/03/29 06:23:25 marius Exp $
  */
 
 #include <sys/types.h>
@@ -177,14 +177,46 @@ client_delaycb(int fd, short which, void *arg)
 	client_sendmsg(cli, &msg);
 }
 
+#if 0
+static double
+difftv(struct timeval *tv0, struct timeval *tv1)
+{
+	struct timeval diff_tv;
+
+	timersub(tv0, tv1, &diff_tv);
+        return (diff_tv.tv_sec + (diff_tv.tv_usec / 1000000.0));
+}
+#endif /* 0 */
+
 void
-client_update(struct client *cli, short which, int len)
+client_update(struct client *cli, short which, size_t len)
 {
 	struct bwstatdata *bsd = &cli->stat->data[which];
+
 
 	warnxv(4, "Statistics (%s) for %d (%s/%s):",
 	    which == TRICKLEDIR_SEND ? "SEND" : "RECV",
 	    cli->pid, cli->argv0, cli->uname);
+
+#if 0
+	/* XXX for testing  */
+	if (which == TRICKLEDIR_SEND) {
+		struct timeval tv, xtv;
+		static struct timeval begtv;
+
+		gettimeofday(&tv, NULL);
+
+		if (!timerisset(&begtv)) {
+			begtv = tv;
+			return;
+		}
+
+		warnxv(4, "DATA %f %d.%d %d.%d",
+		    difftv(&tv, &begtv),
+		    bsd->rate / 1024, (bsd->rate % 1024) * 100 / 1024,
+		    bsd->winrate / 1024, (bsd->winrate % 1024) * 100 / 1024);
+	}
+#endif /* 0 */
 
 	bwstat_update(cli->stat, len, which);
 

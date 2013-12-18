@@ -4,7 +4,7 @@
  * Copyright (c) 2003 Marius Aamodt Eriksen <marius@monkey.org>
  * All rights reserved.
  *
- * $Id: client.h,v 1.4 2003/03/09 09:14:21 marius Exp $
+ * $Id: client.h,v 1.5 2003/03/29 06:23:25 marius Exp $
  */
 
 #ifndef TRICKLE_CLIENT_H
@@ -49,7 +49,7 @@ int             client_configure(struct client *);
 void            client_unregister(struct client *);
 void            client_delay(struct client *, short, size_t, uint);
 void            client_getdelay(struct client *, short, size_t, uint);
-void            client_update(struct client *, short, int);
+void            client_update(struct client *, short, size_t);
 int             client_sendmsg(struct client *, struct msg *);
 int             client_recvmsg(struct client *, struct msg *);
 void            client_printrates(void);

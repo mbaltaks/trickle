@@ -4,7 +4,7 @@
  * Copyright (c) 2002, 2003 Marius Aamodt Eriksen <marius@monkey.org>
  * All rights reserved.
  *
- * $Id: trickle-overload.c,v 1.22 2003/03/09 09:14:21 marius Exp $
+ * $Id: trickle-overload.c,v 1.27 2003/03/30 04:47:30 marius Exp $
  */
 
 #include <sys/types.h>
@@ -61,6 +61,7 @@ struct sockdesc {
 	struct {
 		int     flags;
 		size_t  lastlen;
+		size_t  selectlen;
 	}                      data[2];
 
 	TAILQ_ENTRY(sockdesc)  next;
@@ -81,6 +82,8 @@ static TAILQ_HEAD(sockdeschead, sockdesc) sdhead;
 static uint32_t winsz, verbose;
 static uint lim[2];
 static char *argv0;
+static double tsmooth;
+static uint lsmooth;
 static int trickled, initialized, initializing;
 /* XXX initializing - volatile? */
 
@@ -130,17 +133,11 @@ void                   safe_printv(int, const char *, ...);
 	exit(l);				\
 } while (0)
 
-#if defined(__linux__) || (defined(__OpenBSD__) && defined(__sparc64__))
-#define UNDERSCORE ""
-#else
+#ifdef DL_NEED_UNDERSCORE
 #define UNDERSCORE "_"
-#endif /* __linux__ */
-
-#if defined(__OpenBSD__) && defined(__sparc64__)
-#define	LIBC SPARC64LIBC
 #else
-#define LIBC "libc.so"
-#endif /* SPARC64LIBC */
+#define UNDERSCORE ""
+#endif /* DL_NEED_UNDERSCORE */
 
 #define INIT do {				\
 	if (!initialized && !initializing)	\
@@ -157,17 +154,23 @@ trickle_init(void)
 {
 	void *dh;
 	char *winszstr, *verbosestr,
-	    *recvlimstr, *sendlimstr, *sockname;
+	    *recvlimstr, *sendlimstr, *sockname, *tsmoothstr, *lsmoothstr;
 
 	initializing = 1;
 
-#if defined(__linux__) || defined(__sun__)
+#ifdef NODLOPEN
 	dh = (void *) -1L;
 #else
-
- 	if ((dh = dlopen(LIBC, RTLD_LAZY)) == NULL)
+ 	if ((dh = dlopen(DLOPENLIBC, RTLD_LAZY)) == NULL)
 		errx(1, "[trickle] Failed to open libc");
-#endif /* __linux__ */
+#endif /* DLOPEN */
+
+	/*
+	 * We get write first, so that we have a bigger chance of
+	 * exiting gracefully with safe_printv.
+	 */
+
+	GETADDR(write);
 
 	GETADDR(socket);
 /*	GETADDR(setsockopt); */
@@ -180,7 +183,6 @@ trickle_init(void)
 #endif /* !__FreeBSD__ */
 	GETADDR(recvfrom);
 
-	GETADDR(write);
 	GETADDR(writev);
 #ifndef __FreeBSD__
 	GETADDR(send);
@@ -213,14 +215,19 @@ trickle_init(void)
 	if ((sockname = getenv("TRICKLE_SOCKNAME")) == NULL)
 		errx(1, "[trickle] Failed to get socket name");
 
-#ifndef __linux__
-	dlclose(dh);
-#endif /* !__linux__ */
+	if ((tsmoothstr = getenv("TRICKLE_TSMOOTH")) == NULL)
+		errx(1, "[trickle] Failed to get time smoothing parameter");
+
+	if ((lsmoothstr = getenv("TRICKLE_LSMOOTH")) == NULL)
+		errx(1, "[trickle] Failed to get length smoothing parameter");
 
 	winsz = atoi(winszstr) * 1024;
 	lim[TRICKLEDIR_RECV] = atoi(recvlimstr) * 1024;
 	lim[TRICKLEDIR_SEND] = atoi(sendlimstr) * 1024;
 	verbose = atoi(verbosestr);
+	if ((tsmooth = strtod(tsmoothstr, (char **)NULL)) <= 0.0)
+		errx(1, "[trickle] Invalid time smoothing parameter");
+	lsmooth = atoi(lsmoothstr) * 1024;
 
 	TAILQ_INIT(&sdhead);
 
@@ -258,8 +265,8 @@ socket(int domain, int type, int protocol)
 
 		/* All sockets are equals. */
 		sd->stat->pts = 1;
-		sd->stat->lsmooth = 20;
-		sd->stat->tsmooth = 10.0;
+		sd->stat->lsmooth = lsmooth;
+		sd->stat->tsmooth = tsmooth;
 		sd->sock = sock;
 
 		TAILQ_INSERT_TAIL(&sdhead, sd, next);
@@ -310,6 +317,8 @@ select_delay(struct sockdesc *sd, fd_set *fds, short which,
 		d->tv = *delaytv;
 		d->which = which;
 		d->sd = sd;
+
+		sd->data[which].selectlen = len;
 
 		FD_CLR(sd->sock, fds);
 
@@ -715,8 +724,8 @@ accept(int sock, struct sockaddr *addr, socklen_t *addrlen)
 
 		sd->sock = ret;
 		sd->stat->pts = 1;
-		sd->stat->lsmooth = 10;
-		sd->stat->tsmooth = 5.0;
+		sd->stat->lsmooth = lsmooth;
+		sd->stat->tsmooth = tsmooth;
 		TAILQ_INSERT_TAIL(&sdhead, sd, next);
 	}
 
@@ -737,8 +746,12 @@ delay(int sock, ssize_t *len, short which)
 	if (sd == NULL)
 		return (-1);
 
-	if (ISSET(sd->data[which].flags, SD_INSELECT))
+	if (ISSET(sd->data[which].flags, SD_INSELECT)) {
+		if (*len > sd->data[which].selectlen)
+			*len = sd->data[which].selectlen;
+		CLR(sd->data[which].flags, SD_INSELECT);
 		return (0);
+	}
 
 	/*
 	 * Try trickled delay first, then local delay.  XXX should be
@@ -770,6 +783,7 @@ getdelay(struct sockdesc *sd, ssize_t *len, short which)
 	struct timeval *xtv;
 	uint xlim = lim[which];
 
+	/* XXX check this. */
 	if (*len < 0)
 		*len = sd->data[which].lastlen;
 

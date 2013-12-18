@@ -1,5 +1,5 @@
 --------------------------------------------------------------------------------
-trickle 1.02
+trickle 1.03
 --------------------------------------------------------------------------------
    by Marius Aamodt Eriksen <marius@monkey.org>
 
@@ -20,6 +20,20 @@ INSTALL
 DOCUMENTATION
 
    See the manpage trickle(1), trickled(8) and trickled.conf(5).
+
+THANKS
+
+   Jolan Luff <jolan@cryptonomicon.org>
+       for testing and access to esoteric platforms.
+
+   Tony Kurc 
+       for the awesome logo.
+
+   Niels Provos <provos@citi.umich.edu>,
+   Gareth Watts <gareth@omnipotent.net>,
+   Jolan Luff <jolan@cryptonomicon.org> and 
+   MESH (http://mesh.eecs.umich.edu/)
+       for useful discussions and suggestions.
 
 LICENSE
 

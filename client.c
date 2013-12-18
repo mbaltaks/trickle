@@ -4,7 +4,7 @@
  * Copyright (c) 2003 Marius Aamodt Eriksen <marius@monkey.org>
  * All rights reserved.
  *
- * $Id: client.c,v 1.12 2003/04/15 05:44:53 marius Exp $
+ * $Id: client.c,v 1.14 2003/05/09 02:16:42 marius Exp $
  */
 
 #include <sys/types.h>
@@ -33,12 +33,17 @@
 #endif /* defined(HAVE_TIME_H) && defined(TIME_WITH_SYS_TIME) */
 #include <string.h>
 
+#ifdef HAVE_NETINET_IN_H
+#include <netinet/in.h>
+#endif /* HAVE_NETINET_IN_H */
+
 #include "print.h"
 #include "trickle.h"
 #include "message.h"
 #include "client.h"
 #include "bwstat.h"
 #include "util.h"
+#include "xdr.h"
 
 static int
 clicmp(struct client *a, struct client *b)
@@ -283,13 +288,47 @@ client_printrates(void)
 int
 client_sendmsg(struct client *cli, struct msg *msg)
 {
-	return (atomicio(write, cli->s, msg, sizeof(*msg)) == sizeof(*msg) ?
-	    0 : -1);
+	u_char buf[2048];
+	uint32_t buflen = sizeof(buf), xbuflen;
+
+	if (cli->s == -1)
+		return (-1);
+
+	if (msg2xdr(msg, buf, &buflen) == -1)
+		return (-1);
+
+	xbuflen = htonl(buflen);
+	if (atomicio(write, cli->s, &xbuflen, sizeof(xbuflen)) !=
+	    sizeof(xbuflen))
+	    return (-1);
+
+	if (atomicio(write, cli->s, buf, buflen) == buflen)
+		return (0);
+
+	return (-1);
 }
 
 int
 client_recvmsg(struct client *cli, struct msg *msg)
 {
-	return (atomicio(read, cli->s, msg, sizeof(*msg)) == sizeof(*msg) ?
-	    0 : -1);
+	u_char buf[2048];
+	uint32_t buflen, xbuflen;
+
+	if (cli->s == -1)
+		return (-1);
+
+	if (atomicio(read, cli->s, &xbuflen, sizeof(xbuflen)) !=
+	    sizeof(xbuflen))
+		return (-1);
+	buflen = ntohl(xbuflen);
+	if (buflen > sizeof(buf))
+		return (-1);
+
+	if (atomicio(read, cli->s, buf, buflen) == buflen) {
+		if (xdr2msg(msg, buf, buflen) == -1)
+			return (-1);
+		return (0);
+	}
+
+	return (-1);
 }

@@ -1,10 +1,10 @@
-dnl $Id: configure.in,v 1.17 2003/04/06 00:29:37 marius Exp $
+dnl $Id: configure.in,v 1.21 2003/06/01 23:32:12 marius Exp $
 AC_INIT(trickle.c)
 
 AC_CANONICAL_SYSTEM
 dnl AC_LIBTOOL_DLOPEN
 
-AM_INIT_AUTOMAKE(trickle, 1.05)
+AM_INIT_AUTOMAKE(trickle, 1.06)
 AM_CONFIG_HEADER(config.h)
 
 AC_PROG_CC
@@ -30,7 +30,7 @@ case "$host" in
     ;;
 esac
 
-dnl Checks for standard libraries.  Solaris sucks ...
+dnl Checks for standard libraries.
 AC_CHECK_LIB(socket, socket)
 AC_CHECK_LIB(nsl, gethostbyname)
 AC_CHECK_LIB(dl, dlopen, [ LIBDL="-ldl" 
@@ -56,7 +56,7 @@ if test "x$ac_cv_libc_defines___progname" = "xyes" ; then
    AC_DEFINE(HAVE___PROGNAME)
 fi
 
-AC_CHECK_HEADERS(sys/ioctl.h sys/time.h err.h time.h unistd.h stdint.h)
+AC_CHECK_HEADERS(sys/ioctl.h sys/time.h err.h time.h unistd.h stdint.h netinet/in.h asm/poll.h)
 
 dnl Checks for typedefs, structures, and compiler characteristics.
 AC_C_CONST
@@ -213,6 +213,7 @@ clibdir="$prefix/lib/trickle"
 
 AC_DEFINE_UNQUOTED(SYSCONFDIR, "$csysconfdir")
 AC_DEFINE_UNQUOTED(LIBDIR, "$clibdir")
+
 
 # This is necessary so that .o files in LIBOBJS are also built via
 # the ANSI2KNR-filtering rules.

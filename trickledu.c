@@ -4,7 +4,7 @@
  * Copyright (c) 2003 Marius Aamodt Eriksen <marius@monkey.org>
  * All rights reserved.
  *
- * $Id: trickledu.c,v 1.13 2003/04/15 05:44:54 marius Exp $
+ * $Id: trickledu.c,v 1.15 2003/05/09 02:16:42 marius Exp $
  */
 
 #include <sys/types.h>
@@ -29,10 +29,15 @@
 #include <time.h>
 #endif /* defined(HAVE_TIME_H) && defined(TIME_WITH_SYS_TIME) */
 
+#ifdef HAVE_NETINET_IN_H
+#include <netinet/in.h>
+#endif /* HAVE_NETINET_IN_H */
+
 #include "trickle.h"
 #include "message.h"
 #include "trickledu.h"
 #include "util.h"
+#include "xdr.h"
 
 static void _trickled_open(struct msg *, int *);
 
@@ -110,22 +115,32 @@ _trickled_open(struct msg *msg, int *xtrickled)
 		return;
 	}
 
-	if (atomicio(libc_write, s, msg, sizeof(*msg)) != sizeof(*msg)) {
+	trickled_sock = *trickled = s;
+
+	if (trickled_sendmsg(msg) == -1) {
 		close(s);
 		return;
 	}
-
-	trickled_sock = *trickled = s;
 }
 
 int
 trickled_sendmsg(struct msg *msg)
 {
+	u_char buf[2048];
+	uint32_t buflen = sizeof(buf), xbuflen;
+
 	if (trickled_sock == -1)
 		goto fail;
 
-	if (atomicio(libc_write, trickled_sock, msg, sizeof(*msg)) ==
-	    sizeof(*msg))
+	if (msg2xdr(msg, buf, &buflen) == -1)
+		return (-1); 	/* XXX fail? */
+
+	xbuflen = htonl(buflen);
+	if (atomicio(libc_write, trickled_sock, &xbuflen, sizeof(xbuflen)) !=
+	    sizeof(xbuflen))
+	    return (-1);
+
+	if (atomicio(libc_write, trickled_sock, buf, buflen) == buflen)
 		return (0);
 
  fail:
@@ -138,12 +153,24 @@ trickled_sendmsg(struct msg *msg)
 int
 trickled_recvmsg(struct msg *msg)
 {
+	u_char buf[2048];
+	uint32_t buflen, xbuflen;
+
 	if (trickled_sock == -1)
 		goto fail;
 
-	if (atomicio(libc_read, trickled_sock, msg, sizeof(*msg)) ==
-	    sizeof(*msg))
+	if (atomicio(libc_read, trickled_sock, &xbuflen, sizeof(xbuflen)) !=
+	    sizeof(xbuflen))
+		return (-1);
+	buflen = ntohl(xbuflen);
+	if (buflen > sizeof(buf))
+		return (-1);
+
+	if (atomicio(libc_read, trickled_sock, buf, buflen) == buflen) {
+		if (xdr2msg(msg, buf, buflen) == -1)
+			return (-1);
 		return (0);
+	}
 
  fail:
 	*trickled = 0;

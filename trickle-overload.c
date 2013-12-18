@@ -4,8 +4,11 @@
  * Copyright (c) 2002, 2003 Marius Aamodt Eriksen <marius@monkey.org>
  * All rights reserved.
  *
- * $Id: trickle-overload.c,v 1.28 2003/04/06 00:29:37 marius Exp $
+ * $Id: trickle-overload.c,v 1.34 2003/06/02 23:13:28 marius Exp $
  */
+
+/* Ick.  linux sucks. */
+#define _GNU_SOURCE
 
 #include <sys/types.h>
 
@@ -52,6 +55,10 @@
 #include "util.h"
 #include "trickledu.h"
 
+#ifndef INFTIM
+#define INFTIM -1
+#endif /* INFTIM */
+
 #define SD_INSELECT 0x01
 
 struct sockdesc {
@@ -69,17 +76,29 @@ struct sockdesc {
 
 struct delay {
 	struct sockdesc    *sd;
-	struct timeval      tv;
+	struct timeval      delaytv;
 	struct timeval      abstv;
 	short               which;
+	short               pollevents;
+	int                 pollidx;
 
 	TAILQ_ENTRY(delay)  next;	
 };
 
 TAILQ_HEAD(delayhead, delay);
 
+struct _pollfd {
+	struct pollfd        *pfd;
+	int                   idx;
+
+	TAILQ_ENTRY(_pollfd)  next;
+};
+
+TAILQ_HEAD(_pollfdhead, _pollfd);
+
 static TAILQ_HEAD(sockdeschead, sockdesc) sdhead;
-static uint32_t winsz, verbose;
+static uint32_t winsz;
+static int verbose;
 static uint lim[2];
 static char *argv0;
 static double tsmooth;
@@ -111,7 +130,7 @@ DECLARE(sendto, ssize_t, (int, const void *, size_t, int,
 	    const struct sockaddr *, socklen_t));
 
 DECLARE(select, int, (int, fd_set *, fd_set *, fd_set *, struct timeval *));
-/* DECLARE(poll, int, (struct pollfd *, int, int)); */
+DECLARE(poll, int, (struct pollfd *, int, int));
 
 #ifdef __sun__
 DECLARE(accept, int, (int, struct sockaddr *, Psocklen_t));
@@ -190,7 +209,7 @@ trickle_init(void)
 	GETADDR(sendto);
 
 	GETADDR(select);
-/*	GETADDR(poll); */
+	GETADDR(poll);
 
 	GETADDR(dup);
 	GETADDR(dup2);
@@ -225,6 +244,7 @@ trickle_init(void)
 	lim[TRICKLE_RECV] = atoi(recvlimstr) * 1024;
 	lim[TRICKLE_SEND] = atoi(sendlimstr) * 1024;
 	verbose = atoi(verbosestr);
+//	verbose = -1;
 	if ((tsmooth = strtod(tsmoothstr, (char **)NULL)) <= 0.0)
 		errx(1, "[trickle] Invalid time smoothing parameter");
 	lsmooth = atoi(lsmoothstr) * 1024;
@@ -295,145 +315,154 @@ close(int fd)
 	return ((*libc_close)(fd));
 }
 
-static int
-select_delay(struct sockdesc *sd, fd_set *fds, short which,
-    struct timeval *tv, struct delayhead *dhead)
+static struct delay *
+select_delay(struct delayhead *dhead, struct sockdesc *sd, short which)
 {
-	struct timeval *delaytv;
-	struct delay *d, *xd;
 	ssize_t len = -1;
+	struct timeval *delaytv;
+	struct delay *d, *_d;
 
 	updatesd(sd, 0, which);
 
-	if ((delaytv = getdelay(sd, &len, which)) != NULL) {
-		safe_printv(3, "[trickle] Delaying socket (%s) %d "
-		    "by %ld seconds %ld microseconds",
-		    which == 0 ? "write" : "read", sd->sock,
-		    delaytv->tv_sec, delaytv->tv_usec);
+	if ((delaytv = getdelay(sd, &len, which)) == NULL)
+		return (NULL);
 
-		if ((d = calloc(1, sizeof(*d))) == NULL)
-			return (-1);
-		gettimeofday(&d->abstv, NULL);
-		d->tv = *delaytv;
-		d->which = which;
-		d->sd = sd;
+	safe_printv(3, "[trickle] Delaying socket (%s) %d "
+	    "by %ld seconds %ld microseconds",
+	    which == 0 ? "write" : "read", sd->sock,
+	    delaytv->tv_sec, delaytv->tv_usec);
 
-		sd->data[which].selectlen = len;
+	if ((d = calloc(1, sizeof(*d))) == NULL)
+		return (NULL);
 
-		FD_CLR(sd->sock, fds);
+	gettimeofday(&d->abstv, NULL);
+	d->delaytv = *delaytv;
+	d->which = which;
+	d->sd = sd;
+	sd->data[which].selectlen = len;
 
-		if (timercmp(delaytv, tv, <)) {
-			*tv = *delaytv;
-			TAILQ_INSERT_HEAD(dhead, d, next);
-		} else {
-			TAILQ_FOREACH(xd, dhead, next)
-				if (timercmp(delaytv, &xd->tv, <))
-					TAILQ_INSERT_BEFORE(xd, d, next);
-		}
+	if (TAILQ_EMPTY(dhead))
+		TAILQ_INSERT_HEAD(dhead, d, next);
+	else {
+		TAILQ_FOREACH(_d, dhead, next)
+			if (timercmp(&d->delaytv, &_d->delaytv, <)) {
+				TAILQ_INSERT_BEFORE(_d, d, next);
+				break;
+			}
+		if (_d == NULL)
+			TAILQ_INSERT_TAIL(dhead, d, next);
 	}
 
-	return (0);
+	return (d);
 }
 
-int
-select(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
-    struct timeval *timeout)
+static struct delay *
+select_shift(struct delayhead *dhead, struct timeval *inittv,
+    struct timeval **delaytv)
 {
-	struct timeval tv, tvref, *tvin, lasttv, curtv, difftv, begintv,
-	    beforetv, nulltv;
-	fd_set *fdsets[] = { writefds, readfds }, *fds;
-	short which;
-	int ret;
-	struct delayhead dhead;
+	struct timeval curtv, difftv;
 	struct delay *d;
 	struct sockdesc *sd;
 
+	gettimeofday(&curtv, NULL);
+	timersub(&curtv, inittv, &difftv);
+
+	TAILQ_FOREACH(d, dhead, next) {
+		if (timercmp(&d->delaytv, &difftv, >))
+			break;
+		sd = d->sd;
+
+		updatesd(sd, 0, d->which);
+		SET(sd->data[d->which].flags, SD_INSELECT);
+	}
+
+	if (d != NULL)
+		timersub(&d->delaytv, &difftv, *delaytv);
+	else 
+		*delaytv = NULL;
+
+	/* XXX this should be impossible ... */
+	if (*delaytv != NULL &&
+	    ((*delaytv)->tv_sec < 0 || (*delaytv)->tv_usec < 0))
+		timerclear(*delaytv);
+
+	return (d);
+}
+
+int
+select(int nfds, fd_set *rfds, fd_set *wfds, fd_set *efds,
+    struct timeval *__timeout)
+{
+	struct sockdesc *sd;
+	fd_set *fdsets[] = { wfds, rfds }, *fds;
+	struct timeval *delaytv, *selecttv = NULL, *timeout = NULL, _timeout,
+	    inittv, curtv, difftv;
+	short which;
+	struct delayhead dhead;
+	struct delay *d, *_d;
+	int ret;
+
 	INIT;
-
-	/* XXX check for FD_SETSIZE */
-
-	memset(&nulltv, 0, sizeof(nulltv));
-	gettimeofday(&begintv, NULL);
 
 	TAILQ_INIT(&dhead);
 
-	tv.tv_sec = tv.tv_usec = LONG_MAX;
-	tvref = tv;
+	/* We don't want to modify the user's timeout */
+	if (__timeout != NULL) {
+		_timeout = *__timeout;
+		timeout = &_timeout;
+	} 
 
 	/*
-	 * Make list of sockets which are trickled *and* are currently
-	 * being selected.  This is ordered by ascending tvs.
+	 * Sockets that require delaying get added to the delay list.
+	 * delaytv is always assigned to the head of the list.
 	 */
-	TAILQ_FOREACH(sd, &sdhead, next)
-		for (which = 0; which < 2; which++)
-			if ((fds = fdsets[which]) != NULL &&
-			    FD_ISSET(sd->sock, fds))
-				select_delay(sd, fds, which, &tv, &dhead);
+	for (which = 0; which < 2; which++)
+		TAILQ_FOREACH(sd, &sdhead, next)
+			if ((fds = fdsets[which]) != NULL && 
+			    FD_ISSET(sd->sock, fds) &&
+			    select_delay(&dhead, sd, which)) {
+				FD_CLR(sd->sock, fds);
+				nfds--;
+			}
 
-	gettimeofday(&beforetv, NULL);
+	gettimeofday(&inittv, NULL);
+	curtv = inittv;
+	d = TAILQ_FIRST(&dhead);
+	delaytv = d != NULL ? &d->delaytv : NULL;
  again:
-	if (timercmp(&tv, &tvref, <)) {
-		if (timeout != NULL && timercmp(timeout, &tv, <))
-			tvin = timeout;
-		else
-			tvin = &tv;
-	} else {
-		if (timeout != NULL)
-			tvin = timeout;
-		else
-			tvin = NULL;
+	timersub(&inittv, &curtv, &difftv);
+	selecttv = NULL;
+
+	if (delaytv != NULL)
+		selecttv = delaytv;
+
+	if (timeout != NULL) {
+		timersub(timeout, &difftv, timeout);
+		if (timeout->tv_sec < 0 || timeout->tv_usec < 0)
+			timerclear(timeout);
+		if (delaytv != NULL && timercmp(timeout, delaytv, <))
+			selecttv = timeout;
+		else if (delaytv == NULL)
+			selecttv = timeout;
 	}
 
-	if (tvin != NULL && tvin != timeout)
-		safe_printv(2, "[trickle] select() timeout: %ld seconds %ld microseconds",
-		    tvin->tv_sec, tvin->tv_usec);
+	ret = (*libc_select)(nfds, rfds, wfds, efds, selecttv);
 
-	if (tvin != NULL && timercmp(tvin, &nulltv, <))
-		timerclear(tvin);
-
-	ret = (*libc_select)(nfds, readfds, writefds, exceptfds, tvin);
-
-	if (ret == 0) {
-		if (tvin == timeout) {
-			ret = 0;
-			goto out;
-		} else {
-			memset(&lasttv, 0, sizeof(lasttv));
-			gettimeofday(&curtv, NULL);
-
-			timersub(&curtv, &beforetv, &difftv);
-
-			while ((d = TAILQ_FIRST(&dhead)) != NULL) {
-				if (timercmp(&d->tv, &difftv, >))
-					break;
-
-				updatesd(d->sd, 0, d->which);
-				SET(d->sd->data[d->which].flags, SD_INSELECT);
-				FD_SET(d->sd->sock, fdsets[d->which]);
-				TAILQ_REMOVE(&dhead, d, next);
-				free(d);
-			}
-
-			if ((d = TAILQ_FIRST(&dhead)) != NULL) {
-				timersub(&curtv, &d->abstv, &difftv);
-				timersub(&d->tv, &difftv, &tv);
-			} else {
-				tv = tvref;
-				if (timeout != NULL) {
-					timersub(&curtv, &begintv, &difftv);
-					timersub(timeout, &difftv, timeout);
-					begintv = curtv;
-				}
-			}
-
-			goto again;
+	if (ret == 0 && delaytv != NULL && selecttv == delaytv) {
+		_d = select_shift(&dhead, &inittv, &delaytv);
+		while ((d = TAILQ_FIRST(&dhead)) != _d) {
+			FD_SET(d->sd->sock, fdsets[d->which]);
+			nfds++;
+			TAILQ_REMOVE(&dhead, d, next);
+			free(d);
 		}
+
+		gettimeofday(&curtv, NULL);
+		goto again;
 	}
 
- out:
 	while ((d = TAILQ_FIRST(&dhead)) != NULL) {
-		if (!FD_ISSET(d->sd->sock, fdsets[d->which]) || ret == 0)
-			CLR(d->sd->data[d->which].flags, SD_INSELECT);
+		CLR(d->sd->data[d->which].flags, SD_INSELECT);
 		TAILQ_REMOVE(&dhead, d, next);
 		free(d);
 	}
@@ -441,13 +470,112 @@ select(int nfds, fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
 	return (ret);
 }
 
-#if 0
+#define POLL_WRMASK (POLLOUT | POLLWRNORM | POLLWRBAND)
+#define POLL_RDMASK (POLLIN | /* POLLNORM | */  POLLPRI | POLLRDNORM | POLLRDBAND)
+
+#if defined(__linux__) || (defined(__svr4__) && defined(__sun__))
 int
-poll(struct pollfd *fds, int nfds, int timeout)
+poll(struct pollfd *fds, nfds_t nfds, int __timeout)
+#elif defined(__FreeBSD__)
+int
+poll(struct pollfd *fds, unsigned int nfds, int __timeout)
+#else
+int
+poll(struct pollfd *fds, int nfds, int __timeout)
+#endif /* __linux__ */
 {
-	return ((*libc_poll)(fds, nfds, timeout));
+	struct pollfd *pfd;
+	int i, polltimeout, ret;
+	struct sockdesc *sd;
+	struct delay *d, *_d;
+	struct timeval inittv, curtv, _timeout, *timeout = NULL, *delaytv,
+	    *polltv, difftv;
+	struct delayhead dhead;
+
+	INIT;
+
+	if (__timeout != INFTIM) {
+		_timeout.tv_sec = __timeout / 1000;
+		_timeout.tv_usec = (__timeout % 1000) * 100;
+		timeout = &_timeout;
+	}
+
+	TAILQ_INIT(&dhead);
+
+	for (i = 0; i < nfds; i++) {
+		pfd = &fds[i];
+		TAILQ_FOREACH(sd, &sdhead, next)
+			if (sd->sock == pfd->fd)
+				break;
+		if (sd == NULL)
+			continue;
+
+		/* For each event */
+		if (pfd->events & POLL_RDMASK && 
+		    (d = select_delay(&dhead, sd, TRICKLE_RECV)) != NULL) {
+			d->pollevents = pfd->events & POLL_RDMASK;
+			d->pollidx = i;
+			pfd->events &= ~POLL_RDMASK;
+		}
+
+		if (pfd->events & POLL_WRMASK && 
+		    (d = select_delay(&dhead, sd, TRICKLE_SEND)) != NULL) {
+			d->pollevents = pfd->events & POLL_WRMASK;
+			d->pollidx = i;
+			pfd->events &= ~POLL_WRMASK;
+		}
+	}
+
+	gettimeofday(&inittv, NULL);
+	curtv = inittv;
+	d = TAILQ_FIRST(&dhead);
+	delaytv = d != NULL ? &d->delaytv : NULL;
+ again:
+	timersub(&inittv, &curtv, &difftv);
+	polltv = NULL;
+
+	if (delaytv != NULL)
+		polltv = delaytv;
+
+	if (timeout != NULL) {
+		timersub(timeout, &difftv, timeout);
+		if (delaytv != NULL && timercmp(timeout, delaytv, <))
+			polltv = timeout;
+		else if (delaytv == NULL)
+			polltv = timeout;
+	}
+
+	/* Calculate polltimeout here based on polltv */
+	if (polltv != NULL)
+		polltimeout = polltv->tv_sec * 1000 +
+		    polltv->tv_usec / 100;
+	else
+		polltimeout = INFTIM;
+
+	ret = (*libc_poll)((struct pollfd *)fds, (int)nfds, (int)polltimeout);
+
+	if (ret == 0 && delaytv != NULL && polltv == delaytv) {
+		_d = select_shift(&dhead, &inittv, &delaytv);
+		while ((d = TAILQ_FIRST(&dhead)) != NULL && d != _d) {
+			fds[d->pollidx].events |= d->pollevents;
+
+			TAILQ_REMOVE(&dhead, d, next);
+			free(d);
+		}
+
+		gettimeofday(&curtv, NULL);
+		goto again;
+	}
+
+	while ((d = TAILQ_FIRST(&dhead)) != NULL) {
+		CLR(d->sd->data[d->which].flags, SD_INSELECT);
+
+		TAILQ_REMOVE(&dhead, d, next);
+		free(d);
+	}
+
+	return (ret);
 }
-#endif /* 0 */
 
 ssize_t
 read(int fd, void *buf, size_t nbytes)
@@ -524,6 +652,7 @@ recv(int sock, void *buf, size_t len, int flags)
 #endif /* !__FreeBSD__ */
 
 #ifdef __sun__
+ssize_t
 recvfrom(int sock, void *buf, size_t len, int flags, struct sockaddr *from,
     Psocklen_t fromlen)
 #else

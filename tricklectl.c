@@ -4,16 +4,37 @@
  * Copyright (c) 2003 Marius Aamodt Eriksen <marius@monkey.org>
  * All rights reserved.
  *
- * $Id: tricklectl.c,v 1.1 2003/04/15 05:44:50 marius Exp $
+ * $Id: tricklectl.c,v 1.4 2003/06/02 23:13:28 marius Exp $
  */
 
-#include <sys/time.h>
 #include <sys/types.h>
+
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif /* HAVE_CONFIG_H */
+
+#ifdef HAVE_SYS_TIME_H
+#include <sys/time.h>
+#endif /* HAVE_SYS_TIME_H */
 #include <sys/socket.h>
 
 #include <stdio.h>
+#ifdef HAVE_ERR_H
 #include <err.h>
+#endif /* HAVE_ERR_H */
 #include <unistd.h>
+#include <string.h>
+#include <stdlib.h>
+#ifdef HAVE_STDINT_H
+#include <stdint.h>
+#endif /* HAVE_STDINT_H */
+#if defined(HAVE_TIME_H) && defined(TIME_WITH_SYS_TIME)
+#include <time.h>
+#endif /* defined(HAVE_TIME_H) && defined(TIME_WITH_SYS_TIME) */
+
+#ifdef HAVE_NETINET_IN_H
+#include <netinet/in.h>
+#endif /* HAVE_NETINET_IN_H */
 
 #include "message.h"
 #include "trickledu.h"
@@ -96,6 +117,7 @@ handle_command(int cmd, int ac, char **av)
 		    ((1.0 * uprate) / (1.0 * uplim)) * 100);
 	}
 	default:
+		break;
 	}
 }
 

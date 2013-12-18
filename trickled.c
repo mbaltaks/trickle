@@ -4,7 +4,7 @@
  * Copyright (c) 2003 Marius Aamodt Eriksen <marius@monkey.org>
  * All rights reserved.
  *
- * $Id: trickled.c,v 1.21 2003/04/15 05:44:53 marius Exp $
+ * $Id: trickled.c,v 1.23 2003/05/09 02:16:42 marius Exp $
  */
 
 /*
@@ -321,8 +321,10 @@ msgcb(int fd, short which, void *arg)
 		}
 
                 cli->pri = conf_get_num(cli->argv0, "Priority", pri);
-		cli->tsmooth = conf_get_fnum(cli->argv0, "Time-Smoothing", tsmooth);
-		cli->lsmooth = conf_get_num(cli->argv0, "Length-Smoothing", lsmooth);
+		cli->tsmooth = conf_get_fnum(cli->argv0, "Time-Smoothing",
+		    tsmooth);
+		cli->lsmooth = conf_get_num(cli->argv0, "Length-Smoothing", 
+		    lsmooth);
 
 		if (client_register(cli) == -1) {
 			warnxv(1, "Failed to register client");
@@ -349,7 +351,7 @@ msgcb(int fd, short which, void *arg)
 			goto out;
 	}
 
-	/* Spectators have a limited "command set". */
+	/* Spectators have a limited "command set." */
 	if (msg.type < MSG_TYPE_GETINFO &&
 	    ISSET(cli->flags, CLIENT_SPECTATOR))
 		goto out;
@@ -390,13 +392,15 @@ static void
 killclient(struct client *cli)
 {
 	close(cli->s);
-	if (!ISSET(cli->flags, CLIENT_SPECTATOR)) {
-		client_unregister(cli);
-		warnxv(1, "Removed client: %d (%s/%s)", cli->pid, cli->argv0,
-		    cli->uname);
-	} else {
- 		warnxv(1, "Removed spectator");
-	}	
+
+	if (ISSET(cli->flags, CLIENT_CONFIGURED)) {
+		if (!ISSET(cli->flags, CLIENT_SPECTATOR)) {
+			client_unregister(cli);
+			warnxv(1, "Removed client: %d (%s/%s)",
+			    cli->pid, cli->argv0, cli->uname);
+		} else
+			warnxv(1, "Removed spectator");
+	}
 
 	free(cli);
 	return;

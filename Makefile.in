@@ -84,7 +84,7 @@ AUTOMAKE_OPTIONS = foreign no-dependencies
 
 DISTCLEANFILES = *~
 
-TRICKLEOVERLOADFILES = @LTLIBOBJS@ trickle-overload.lo bwstat.lo trickledu.lo                        atomicio.lo
+TRICKLEOVERLOADFILES = @LTLIBOBJS@ trickle-overload.lo bwstat.lo trickledu.lo                        atomicio.lo xdr.lo
 
 
 trickleoverloaddir = $(libdir)/trickle
@@ -98,11 +98,12 @@ trickle_DEPENDENCIES = @ERRO@ @LIBOBJS@
 trickle_SOURCES = trickle.c util.c getopt.c
 trickle_LDADD = @ERRO@ @LIBOBJS@
 
-trickled_SOURCES = trickled.c atomicio.c print.c bwstat.c client.c conf.c                    util.c cleanup.c getopt.c
+trickled_SOURCES = trickled.c atomicio.c print.c bwstat.c client.c conf.c                    util.c cleanup.c getopt.c xdr.c
 
 trickled_LDADD = @EVENTLIB@ @LIBOBJS@
 
-tricklectl_SOURCES = tricklectl.c trickledu.c atomicio.c
+tricklectl_SOURCES = tricklectl.c trickledu.c atomicio.c xdr.c
+tricklectl_LDADD = @ERRO@ @LIBOBJS@
 
 AM_CFLAGS =  -Wall -Icompat @EVENTINC@
 
@@ -111,7 +112,7 @@ overload_DATA = libtrickle.so
 
 CLEANFILES = *.so
 
-EXTRA_DIST = LICENSE README strlcat.c strlcpy.c err.c Makefile.am.inc	             compat/sys/queue.h compat/sys/tree.h trickle.1 trickled.8		     trickled.conf.5 trickle-overload.c trickledu.c cleanup.h		     conf.h message.h trickle.h util.h bwstat.h client.h		     print.h trickledu.h
+EXTRA_DIST = LICENSE README strlcat.c strlcpy.c err.c Makefile.am.inc	             compat/sys/queue.h compat/sys/tree.h trickle.1 trickled.8		     trickled.conf.5 trickle-overload.c trickledu.c cleanup.h		     conf.h message.h trickle.h util.h bwstat.h client.h		     print.h trickledu.h xdr.h
 
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 mkinstalldirs = $(SHELL) $(top_srcdir)/mkinstalldirs
@@ -127,12 +128,11 @@ LIBS = @LIBS@
 trickle_OBJECTS =  trickle.o util.o getopt.o
 trickle_LDFLAGS = 
 trickled_OBJECTS =  trickled.o atomicio.o print.o bwstat.o client.o \
-conf.o util.o cleanup.o getopt.o
+conf.o util.o cleanup.o getopt.o xdr.o
 trickled_DEPENDENCIES =  @LIBOBJS@
 trickled_LDFLAGS = 
-tricklectl_OBJECTS =  tricklectl.o trickledu.o atomicio.o
-tricklectl_LDADD = $(LDADD)
-tricklectl_DEPENDENCIES = 
+tricklectl_OBJECTS =  tricklectl.o trickledu.o atomicio.o xdr.o
+tricklectl_DEPENDENCIES =  @LIBOBJS@
 tricklectl_LDFLAGS = 
 CFLAGS = @CFLAGS@
 COMPILE = $(CC) $(DEFS) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)

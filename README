@@ -1,0 +1,28 @@
+--------------------------------------------------------------------------------
+trickle 1.0
+--------------------------------------------------------------------------------
+   by Marius Aamodt Eriksen <marius@monkey.org>
+
+   http://monkey.org/~marius/trickle
+
+DESCRIPTION
+
+   trickle is a voluntary, cooperative bandwidth shaper.  trickle works
+   entirely in userland and is cross platform compatible.
+
+INSTALL
+
+   ./configure
+   make
+   su
+   make install
+
+DOCUMENTATION
+
+   See the manpage trickle(1), trickled(8) and trickled.conf(5).
+
+LICENSE
+
+   trickle is distributed under a BSD like license.  Feel free to use,
+   modify and distribute in any form.  See the LICENSE file for more
+   information.

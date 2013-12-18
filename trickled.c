@@ -118,10 +118,10 @@ main(int argc, char **argv)
 			verbose++;
 			break;
 		case 'u':
-			globlim[TRICKLEDIR_SEND] = 1024 * atoi(optarg);
+			globlim[TRICKLE_SEND] = 1024 * atoi(optarg);
 			break;
 		case 'd':
-			globlim[TRICKLEDIR_RECV] = 1024 * atoi(optarg);
+			globlim[TRICKLE_RECV] = 1024 * atoi(optarg);
 			break;
 		case 'f':
 			fg = 1;
@@ -275,7 +275,10 @@ msgcb(int fd, short which, void *arg)
 	}
 
 	switch (msg.type) {
-	case MSGTYPE_CONF: {
+	case MSG_TYPE_SPECTATOR:
+		SET(cli->flags, CLIENT_CONFIGURED);
+		break;
+	case MSG_TYPE_CONF: {
 		struct passwd *pw;
 		struct group *gr;
 		struct msg_conf *conf = &msg.data.conf;
@@ -333,20 +336,25 @@ msgcb(int fd, short which, void *arg)
 	}
 
 	switch (msg.type) {
-	case MSGTYPE_UPDATE: {
+	case MSG_TYPE_UPDATE: {
 		struct msg_update *update = &msg.data.update;
 		client_update(cli, update->dir, update->len);
 		break;
 	}
-	case MSGTYPE_DELAY: {
+	case MSG_TYPE_DELAY: {
 		struct msg_delay *delay = &msg.data.delay;
 		client_delay(cli, delay->dir, delay->len, globlim[delay->dir]);
 		break;
 	}
-	case MSGTYPE_GETDELAY: {
+	case MSG_TYPE_GETDELAY: {
 		struct msg_delay *delay = &msg.data.delay;
 		client_getdelay(cli, delay->dir, delay->len,
 		    globlim[delay->dir]);
+		break;
+	}
+	case MSG_TYPE_GETINFO: {
+		client_getinfo(cli, globlim[TRICKLE_SEND],
+		    globlim[TRICKLE_RECV]);
 		break;
 	}
 	default:

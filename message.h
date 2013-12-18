@@ -13,15 +13,17 @@
 /* XXX */
 #define SOCKNAME "trickle.sock"
 
-#define MSGTYPE_NEW       1
-#define MSGTYPE_CONF      2
-#define MSGTYPE_UPDATE    3
-#define MSGTYPE_CONT      4
-#define MSGTYPE_DELAY     5
-#define MSGTYPE_GETDELAY  6
-#define MSGTYPE_DELAYINFO 7 
+#define MSG_TYPE_NEW       1
+#define MSG_TYPE_CONF      2
+#define MSG_TYPE_UPDATE    3
+#define MSG_TYPE_CONT      4
+#define MSG_TYPE_DELAY     5
+#define MSG_TYPE_GETDELAY  6
+#define MSG_TYPE_DELAYINFO 7 
+#define MSG_TYPE_GETINFO   8
+#define MSG_TYPE_SPECTATOR 9
 
-#define MSGSTATUS_FAIL 1
+#define MSG_STATUS_FAIL 1
 
 struct msg_conf {
 	uint   lim[2];
@@ -46,6 +48,13 @@ struct msg_delayinfo {
 	ssize_t        len;
 };
 
+struct msg_getinfo {
+	struct {
+		uint32_t lim;
+		uint32_t rate;
+	} dirinfo[2];
+};
+
 struct msg {
 	short type;
 	short status;
@@ -54,6 +63,7 @@ struct msg {
 		struct msg_delay     delay;
 		struct msg_update    update;
 		struct msg_delayinfo delayinfo;
+		struct msg_getinfo   getinfo;
 	} data;
 };
 

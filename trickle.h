@@ -10,9 +10,8 @@
 #ifndef TRICKLE_H
 #define TRICKLE_H
 
-
-#define TRICKLEDIR_SEND 0
-#define TRICKLEDIR_RECV 1
+#define TRICKLE_SEND 0
+#define TRICKLE_RECV 1
 
 #define TRICKLE_NONBLOCK 0x1
 

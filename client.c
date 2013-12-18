@@ -110,6 +110,27 @@ client_unregister(struct client *cli)
 }
 
 void
+client_getinfo(struct client *cli, uint sendlim, uint recvlim)
+{
+	struct bwstat *bs = bwstat_gettot();
+	struct bwstat_data *bsdrecv = &bs->data[TRICKLE_RECV],
+	    *bsdsend = &bs->data[TRICKLE_SEND];
+	struct msg msg;
+	struct msg_getinfo *getinfo = &msg.data.getinfo;
+
+	memset(&msg, 0, sizeof(msg));
+	msg.type = MSG_TYPE_DELAYINFO;
+
+	getinfo->dirinfo[TRICKLE_SEND].rate = bsdsend->winrate;
+	getinfo->dirinfo[TRICKLE_SEND].lim = sendlim;
+
+	getinfo->dirinfo[TRICKLE_RECV].rate = bsdrecv->winrate;
+	getinfo->dirinfo[TRICKLE_RECV].lim = recvlim;
+
+	client_sendmsg(cli, &msg);
+}
+
+void
 client_delay(struct client *cli, short which, size_t len, uint lim)
 {
 	struct timeval *tv;
@@ -127,7 +148,7 @@ client_delay(struct client *cli, short which, size_t len, uint lim)
 		struct msg msg;
 		struct msg_delayinfo *delayinfo = &msg.data.delayinfo;
 
-		msg.type = MSGTYPE_CONT;
+		msg.type = MSG_TYPE_CONT;
 		delayinfo->len = len;
 		if (client_sendmsg(cli, &msg) == -1)
 			;	/* XXX delete client */
@@ -146,7 +167,7 @@ client_getdelay(struct client *cli, short which, size_t len, uint lim)
 	if ((tv = bwstat_getdelay(cli->stat, &len, lim, which)) != NULL)
 		delayinfo->delaytv = *tv;
 	else
-		SET(msg.status, MSGSTATUS_FAIL);
+		SET(msg.status, MSG_STATUS_FAIL);
 
 	delayinfo->len = len;
 	tv = &delayinfo->delaytv;
@@ -154,7 +175,7 @@ client_getdelay(struct client *cli, short which, size_t len, uint lim)
 	warnxv(3, "Returning delay %d (%s/%s) info: %d bytes in %dsec%dusec",
 	    cli->pid, cli->argv0, cli->uname, len, tv->tv_sec, tv->tv_usec);
 
-	msg.type = MSGTYPE_DELAYINFO;
+	msg.type = MSG_TYPE_DELAYINFO;
 
 	client_sendmsg(cli, &msg);
 }
@@ -171,7 +192,7 @@ client_delaycb(int fd, short which, void *arg)
 
 	delayinfo->len = cli->delaylen;
 
-	msg.type = MSGTYPE_CONT;
+	msg.type = MSG_TYPE_CONT;
 
 	/* XXX on error */
 	client_sendmsg(cli, &msg);
@@ -191,16 +212,16 @@ difftv(struct timeval *tv0, struct timeval *tv1)
 void
 client_update(struct client *cli, short which, size_t len)
 {
-	struct bwstatdata *bsd = &cli->stat->data[which];
+	struct bwstat_data *bsd = &cli->stat->data[which];
 
 
 	warnxv(4, "Statistics (%s) for %d (%s/%s):",
-	    which == TRICKLEDIR_SEND ? "SEND" : "RECV",
+	    which == TRICKLE_SEND ? "SEND" : "RECV",
 	    cli->pid, cli->argv0, cli->uname);
 
 #if 0
 	/* XXX for testing  */
-	if (which == TRICKLEDIR_SEND) {
+	if (which == TRICKLE_SEND) {
 		struct timeval tv, xtv;
 		static struct timeval begtv;
 
@@ -229,8 +250,8 @@ void
 client_printrates(void)
 {
 	struct bwstat *bs = bwstat_gettot();
-	struct bwstatdata *bsdrecv = &bs->data[TRICKLEDIR_RECV],
-	    *bsdsend = &bs->data[TRICKLEDIR_SEND], *bsd;
+	struct bwstat_data *bsdrecv = &bs->data[TRICKLE_RECV],
+	    *bsdsend = &bs->data[TRICKLE_SEND], *bsd;
 
 	bsd = bsdsend;
 

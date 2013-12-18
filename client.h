@@ -53,5 +53,6 @@ void            client_update(struct client *, short, size_t);
 int             client_sendmsg(struct client *, struct msg *);
 int             client_recvmsg(struct client *, struct msg *);
 void            client_printrates(void);
+void            client_getinfo(struct client *, uint, uint);
 
 #endif /* TRICKLE_CLIENT_H */

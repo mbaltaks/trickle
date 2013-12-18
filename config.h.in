@@ -56,6 +56,9 @@
 /* Define if you have the strsep function.  */
 #undef HAVE_STRSEP
 
+/* Define if you have the <dlfcn.h> header file.  */
+#undef HAVE_DLFCN_H
+
 /* Define if you have the <err.h> header file.  */
 #undef HAVE_ERR_H
 

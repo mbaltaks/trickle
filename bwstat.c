@@ -4,7 +4,7 @@
  * Copyright (c) 2003 Marius Aamodt Eriksen <marius@monkey.org>
  * All rights reserved.
  *
- * $Id: bwstat.c,v 1.11 2003/03/29 23:34:40 marius Exp $ 
+ * $Id: bwstat.c,v 1.12 2003/04/01 00:57:17 marius Exp $ 
  */
 
 #include <sys/types.h>
@@ -35,7 +35,7 @@ static TAILQ_HEAD(bwstathead, bwstat) statq;
 static uint winsz;
 
 static double difftv(struct timeval *, struct timeval *);
-static void   _bwstat_update(struct bwstatdata *, size_t);
+static void   _bwstat_update(struct bwstat_data *, size_t);
 
 #define INITTV(tv, curtv) do {			\
 	if (!timerisset(&(tv)))			\
@@ -98,7 +98,7 @@ bwstat_update(struct bwstat *bs, size_t len, short which)
 }
 
 static void
-_bwstat_update(struct bwstatdata *bsd, size_t len)
+_bwstat_update(struct bwstat_data *bsd, size_t len)
 {
 	struct timeval curtv;
 	double elap, elapwin;
@@ -224,14 +224,14 @@ bwstat_getdelay(struct bwstat *bs, size_t *len, uint lim, short which)
 	else
 		delay = 0.0;
 
-	if (delay > bs->tsmooth) { 
+/*	if (delay > bs->tsmooth) {  */
 	if ((*len = ent * bs->pts * bs->tsmooth) == 0) {
 		*len = bs->lsmooth;
 		delay = (1.0 * *len) / (1.0 * ent * bs->pts);
 	} else {
 		delay = bs->tsmooth;
 	}
-	}
+/*	} */
 
 	if (*len > xlen) {
 		*len = xlen;

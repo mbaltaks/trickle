@@ -222,8 +222,8 @@ trickle_init(void)
 		errx(1, "[trickle] Failed to get length smoothing parameter");
 
 	winsz = atoi(winszstr) * 1024;
-	lim[TRICKLEDIR_RECV] = atoi(recvlimstr) * 1024;
-	lim[TRICKLEDIR_SEND] = atoi(sendlimstr) * 1024;
+	lim[TRICKLE_RECV] = atoi(recvlimstr) * 1024;
+	lim[TRICKLE_SEND] = atoi(sendlimstr) * 1024;
 	verbose = atoi(verbosestr);
 	if ((tsmooth = strtod(tsmoothstr, (char **)NULL)) <= 0.0)
 		errx(1, "[trickle] Invalid time smoothing parameter");
@@ -452,19 +452,21 @@ poll(struct pollfd *fds, int nfds, int timeout)
 ssize_t
 read(int fd, void *buf, size_t nbytes)
 {
-	ssize_t ret;
+	ssize_t ret = -1;
 	size_t xnbytes = nbytes;
+	int eagain;
 
 	INIT;
 
-	if (delay(fd, &xnbytes, TRICKLEDIR_RECV) == TRICKLE_WOULDBLOCK) {
-		errno = EAGAIN;
-		ret = -1;
-	} else {
+	if (!(eagain = delay(fd, &xnbytes, TRICKLE_RECV) == TRICKLE_WOULDBLOCK))
 		ret = (*libc_read)(fd, buf, xnbytes);
-	}
 
-	update(fd, ret, TRICKLEDIR_RECV);
+	update(fd, ret, TRICKLE_RECV);
+
+	if (eagain) {
+		ret = -1;
+		errno = EAGAIN;
+	}
 
 	return (ret);
 }
@@ -476,22 +478,23 @@ ssize_t
 readv(int fd, const struct iovec *iov, int iovcnt)
 {
 	size_t len = 0;
-	ssize_t ret;
-	int i;
+	ssize_t ret = -1;
+	int i, eagain;
 
 	INIT;
 
 	for (i = 0; i < iovcnt; i++)
 		len += iov[i].iov_len;
 
-	if (delay(fd, &len, TRICKLEDIR_RECV) == TRICKLE_WOULDBLOCK) {
+	if (!(eagain = delay(fd, &len, TRICKLE_RECV) == TRICKLE_WOULDBLOCK))
+		ret = (*libc_readv)(fd, iov, iovcnt);
+
+	update(fd, ret, TRICKLE_RECV);
+
+	if (eagain) {
 		errno = EAGAIN;
 		ret = -1;
-	} else {
-		ret = (*libc_readv)(fd, iov, iovcnt);
 	}
-
-	update(fd, ret, TRICKLEDIR_RECV);
 
 	return (ret);
 }
@@ -500,19 +503,21 @@ readv(int fd, const struct iovec *iov, int iovcnt)
 ssize_t
 recv(int sock, void *buf, size_t len, int flags)
 {
-	ssize_t ret;
+	ssize_t ret = -1;
 	size_t xlen = len;
+	int eagain;
 
 	INIT;
 
-	if (delay(sock, &xlen, TRICKLEDIR_RECV) == TRICKLE_WOULDBLOCK) {
+	if (!(eagain = delay(sock, &xlen, TRICKLE_RECV) == TRICKLE_WOULDBLOCK))
+		ret = (*libc_recv)(sock, buf, xlen, flags);
+
+	update(sock, ret, TRICKLE_RECV);
+
+	if (eagain) {
 		errno = EAGAIN;
 		ret = -1;
-	} else {
-		ret = (*libc_recv)(sock, buf, xlen, flags);
 	}
-
-	update(sock, ret, TRICKLEDIR_RECV);
 
 	return (ret);
 }
@@ -527,19 +532,21 @@ recvfrom(int sock, void *buf, size_t len, int flags, struct sockaddr *from,
     socklen_t *fromlen)
 #endif /* __sun__ */
 {
-	ssize_t ret;
+	ssize_t ret = -1;
 	size_t xlen = len;
+	int eagain;
 
 	INIT;
 
-	if (delay(sock, &xlen, TRICKLEDIR_RECV) == TRICKLE_WOULDBLOCK) {
+	if (!(eagain = delay(sock, &xlen, TRICKLE_RECV) == TRICKLE_WOULDBLOCK))
+		ret = (*libc_recvfrom)(sock, buf, xlen, flags, from, fromlen);
+
+	update(sock, ret, TRICKLE_RECV);
+
+	if (eagain) {
 		errno = EAGAIN;
 		ret = -1;
-	} else {
-		ret = (*libc_recvfrom)(sock, buf, xlen, flags, from, fromlen);
 	}
-
-	update(sock, ret, TRICKLEDIR_RECV);
 
 	return (ret);
 }
@@ -547,19 +554,21 @@ recvfrom(int sock, void *buf, size_t len, int flags, struct sockaddr *from,
 ssize_t
 write(int fd, const void *buf, size_t len)
 {
-	ssize_t ret;
+	ssize_t ret = -1;
 	size_t xlen = len;
+	int eagain;
 
 	INIT;
 
-	if (delay(fd, &xlen, TRICKLEDIR_SEND) == TRICKLE_WOULDBLOCK) {
+	if (!(eagain = delay(fd, &xlen, TRICKLE_SEND) == TRICKLE_WOULDBLOCK))
+		ret = (*libc_write)(fd, buf, xlen);
+
+	update(fd, ret, TRICKLE_SEND);
+
+	if (eagain) {
 		errno = EAGAIN;
 		ret = -1;
-	} else {
-		ret = (*libc_write)(fd, buf, xlen);
 	}
-
-	update(fd, ret, TRICKLEDIR_SEND);
 
 	return (ret);
 }
@@ -570,23 +579,24 @@ write(int fd, const void *buf, size_t len)
 ssize_t
 writev(int fd, const struct iovec *iov, int iovcnt)
 {
-	ssize_t ret;
+	ssize_t ret = -1;
 	size_t len = 0;
-	int i;
+	int i, eagain;
 
 	INIT;
 
 	for (i = 0; i < iovcnt; i++)
 		len += iov[i].iov_len;
 
-	if (delay(fd, &len, TRICKLEDIR_SEND) == TRICKLE_WOULDBLOCK) {
+	if (!(eagain = delay(fd, &len, TRICKLE_SEND) == TRICKLE_WOULDBLOCK))
+		ret = (*libc_writev)(fd, iov, iovcnt);
+
+	update(fd, ret, TRICKLE_SEND);
+
+	if (eagain) {
 		errno = EAGAIN;
 		ret = -1;
-	} else {
-		ret = (*libc_writev)(fd, iov, iovcnt);
 	}
-
-	update(fd, ret, TRICKLEDIR_SEND);
 
 	return (ret);
 }
@@ -595,19 +605,21 @@ writev(int fd, const struct iovec *iov, int iovcnt)
 ssize_t
 send(int sock, const void *buf, size_t len, int flags)
 {
-	ssize_t ret;
+	ssize_t ret = -1;
 	size_t xlen = len;
+	int eagain;
 
 	INIT;
 
-	if (delay(sock, &xlen, TRICKLEDIR_SEND) == TRICKLE_WOULDBLOCK) {
+	if (!(eagain = delay(sock, &xlen, TRICKLE_SEND) == TRICKLE_WOULDBLOCK))
+		ret = (*libc_send)(sock, buf, xlen, flags);
+
+	update(sock, ret, TRICKLE_SEND);
+
+	if (eagain) {
 		errno = EAGAIN;
 		ret = -1;
-	} else {
-		ret = (*libc_send)(sock, buf, xlen, flags);
 	}
-
-	update(sock, ret, TRICKLEDIR_SEND);
 
 	return (ret);
 }
@@ -617,19 +629,21 @@ ssize_t
 sendto(int sock, const void *buf, size_t len, int flags, const struct sockaddr *to,
     socklen_t tolen)
 {
-	ssize_t ret;
+	ssize_t ret = -1;
 	size_t xlen = len;
+	int eagain;
 
 	INIT;
 
-	if (delay(sock, &xlen, TRICKLEDIR_SEND) == TRICKLE_WOULDBLOCK) {
+	if (!(eagain = delay(sock, &xlen, TRICKLE_SEND) == TRICKLE_WOULDBLOCK))
+		ret = (*libc_sendto)(sock, buf, xlen, flags, to, tolen);
+
+	update(sock, ret, TRICKLE_SEND);
+
+	if (eagain) {
 		errno = EAGAIN;
 		ret = -1;
-	} else {
-		ret = (*libc_sendto)(sock, buf, xlen, flags, to, tolen);
 	}
-
-	update(sock, ret, TRICKLEDIR_SEND);
 
 	return (ret);
 }
@@ -753,14 +767,6 @@ delay(int sock, ssize_t *len, short which)
 		return (0);
 	}
 
-	/*
-	 * Try trickled delay first, then local delay.  XXX should be
-	 * trickled_getdelay, then localdelay.
-	 */
-	/* XXX nonblock */
-	if (trickled && trickled_delay(which, len) != -1)
-		return (0);
-
 	if ((tv = getdelay(sd, len, which)) != NULL) {
 		TIMEVAL_TO_TIMESPEC(tv, &ts);
 
@@ -815,16 +821,18 @@ update(int sock, ssize_t len, short which)
 static void
 updatesd(struct sockdesc *sd, ssize_t len, short which)
 {
-	struct bwstatdata *bsd;
+	struct bwstat_data *bsd;
 	int ret;
 
 	if (len < 0)
 		len = 0;
 
-	if ((ret = fcntl(sd->sock, F_GETFL, O_NONBLOCK)) && ret != -1)
-		SET(sd->flags, TRICKLE_NONBLOCK);
-	else if (ret != -1)
-		CLR(sd->flags, TRICKLE_NONBLOCK);
+	if ((ret = fcntl(sd->sock, F_GETFL, 0)) != -1) {
+		if (ret & O_NONBLOCK)
+			SET(sd->flags, TRICKLE_NONBLOCK);
+		else
+			CLR(sd->flags, TRICKLE_NONBLOCK);
+	}
 
 	if (len > 0)
 		sd->data[which].lastlen = len;

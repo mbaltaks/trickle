@@ -79,7 +79,7 @@ trickled_open(int *xtrickled)
 
 	memset(&msg, 0, sizeof(msg));
 
-	msg.type = MSGTYPE_CONF;
+	msg.type = MSG_TYPE_CONF;
 	conf = &msg.data.conf;
 	/* memcpy(conf->lim, lim, sizeof(conf->lim)); */
 	conf->pid = getpid();
@@ -135,7 +135,7 @@ trickled_update(short dir, size_t len)
 	struct msg msg;
 	struct msg_update *update = &msg.data.update;
 
-	msg.type = MSGTYPE_UPDATE;
+	msg.type = MSG_TYPE_UPDATE;
 
 	update->len = len;
 	update->dir = dir;
@@ -150,7 +150,7 @@ trickled_delay(short dir, size_t *len)
 	struct msg_delay *delay = &msg.data.delay;
 	struct msg_delayinfo *delayinfo = &msg.data.delayinfo;
 
-	msg.type = MSGTYPE_DELAY;
+	msg.type = MSG_TYPE_DELAY;
 
 	delay->len = *len;
 	delay->dir = dir;
@@ -162,7 +162,7 @@ trickled_delay(short dir, size_t *len)
 	do {
 		if (trickled_recvmsg(&msg) == -1)
 			return (-1);
-	} while (msg.type != MSGTYPE_CONT);
+	} while (msg.type != MSG_TYPE_CONT);
 
 	*len = delayinfo->len;
 
@@ -177,7 +177,7 @@ trickled_getdelay(short dir, size_t *len)
 	struct msg_delayinfo *delayinfo = &msg.data.delayinfo;
 	static struct timeval tv;
 
-	msg.type = MSGTYPE_GETDELAY;
+	msg.type = MSG_TYPE_GETDELAY;
 
 	delay->len = *len;
 	delay->dir = dir;
@@ -189,9 +189,9 @@ trickled_getdelay(short dir, size_t *len)
 	do {
 		if (trickled_recvmsg(&msg) == -1)
 			return (NULL);
-	} while (msg.type != MSGTYPE_DELAYINFO);
+	} while (msg.type != MSG_TYPE_DELAYINFO);
 
-	if (ISSET(msg.status, MSGSTATUS_FAIL))
+	if (ISSET(msg.status, MSG_STATUS_FAIL))
 		return (NULL);
 
 	tv = delayinfo->delaytv;

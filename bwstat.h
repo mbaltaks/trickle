@@ -10,10 +10,10 @@
 #ifndef TRICKLE_BWSTAT
 #define TRICKLE_BWSTAT
 
-#define BWSTATDATA_SEND 0
-#define BWSTATDATA_RECV 1
+#define BWSTAT_SEND 0
+#define BWSTAT_RECV 1
 
-struct bwstatdata {
+struct bwstat_data {
 	uint32_t            bytes;
 	uint32_t            rate;
 	struct timeval      tv;
@@ -24,7 +24,7 @@ struct bwstatdata {
 };
 
 struct bwstat {
-	struct bwstatdata   data[2];
+	struct bwstat_data  data[2];
 	uint                pts;
 	uint                lsmooth;
 	double              tsmooth;
